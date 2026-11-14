@@ -174,7 +174,8 @@ class MenuNavigationMiddleware(
 
                 is MenuAction.Navigate.AddToHomeScreen -> {
                     settings.installPwaOpened = true
-                    if (webAppUseCases.isInstallable()) {
+                    // Profiles: profile tabs are added as basic shortcuts so they keep their profile.
+                    if (webAppUseCases.isInstallable() && browserStore.state.selectedTab?.contextId == null) {
                         webAppUseCases.addToHomescreen()
                         store.emitEvent(NavigationEvent.Dismiss)
                     } else {

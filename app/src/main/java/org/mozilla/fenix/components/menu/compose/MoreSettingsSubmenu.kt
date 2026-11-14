@@ -55,6 +55,9 @@ internal fun MoreSettingsSubmenu(
     onOpenInAppMenuClick: () -> Unit,
     onMoveToNonPrivateTabMenuClick: () -> Unit,
     onAddToTabGroupClick: () -> Unit,
+    // Profiles: label of the "Open in profile" item, null hides it.
+    profileLabel: String? = null,
+    onOpenInProfileClick: () -> Unit = {},
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
         TranslationMenuItem(
@@ -70,6 +73,14 @@ internal fun MoreSettingsSubmenu(
             isPrivate = isPrivate,
             onMoveToNonPrivateTabMenuClick = onMoveToNonPrivateTabMenuClick,
         )
+        if (profileLabel != null) {
+            // Profiles
+            MenuItem(
+                label = profileLabel,
+                beforeIconPainter = painterResource(id = iconsR.drawable.mozac_ic_external_link_24),
+                onClick = onOpenInProfileClick,
+            )
+        }
         WebCompatReporterMenuItem(
             isWebCompatEnabled = isWebCompatEnabled,
             onWebCompatReporterClick = onWebCompatReporterClick,

@@ -47,6 +47,13 @@
             android:key="@string/pref_key_tabs"
             android:title="@string/preferences_tabs" />
 
+        <!-- Profiles -->
+        <androidx.preference.Preference
+            app:iconSpaceReserved="false"
+            android:key="@string/pref_key_profiles"
+            android:title="@string/profiles_title"
+            android:summary="@string/profiles_summary" />
+
         <androidx.preference.Preference
             app:iconSpaceReserved="false"
             android:key="@string/pref_key_home"

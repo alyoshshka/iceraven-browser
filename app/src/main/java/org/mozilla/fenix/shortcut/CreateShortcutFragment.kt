@@ -17,6 +17,7 @@ import org.mozilla.fenix.R
 import org.mozilla.fenix.databinding.FragmentCreateShortcutBinding
 import org.mozilla.fenix.ext.loadIntoView
 import org.mozilla.fenix.ext.requireComponents
+import org.mozilla.fenix.profiles.profileShortcutExtras
 
 class CreateShortcutFragment : DialogFragment() {
     private var _binding: FragmentCreateShortcutBinding? = null
@@ -51,8 +52,10 @@ class CreateShortcutFragment : DialogFragment() {
             binding.cancelButton.setOnClickListener { dismiss() }
             binding.addButton.setOnClickListener {
                 val text = binding.shortcutText.text.toString().trim()
+                // Profiles: remember the tab's profile and desktop mode in the shortcut.
+                val extras = profileShortcutExtras(tab)
                 requireActivity().lifecycleScope.launch {
-                    requireComponents.useCases.webAppUseCases.addToHomescreen(text)
+                    requireComponents.useCases.webAppUseCases.addToHomescreen(text, extras)
                 }
                 dismiss()
             }
@@ -61,7 +64,15 @@ class CreateShortcutFragment : DialogFragment() {
                 updateAddButtonEnabledState()
             }
 
-            binding.shortcutText.setText(tab.content.title)
+            // Profiles: suggested label "<title> (<profile name>)" for profile tabs.
+            val profileName = tab.contextId?.let { requireComponents.core.store.state.containers[it]?.name }
+            binding.shortcutText.setText(
+                if (profileName != null) {
+                    getString(R.string.profiles_shortcut_label, tab.content.title, profileName)
+                } else {
+                    tab.content.title
+                },
+            )
         }
     }
 

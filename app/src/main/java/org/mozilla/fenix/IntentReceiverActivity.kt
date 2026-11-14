@@ -156,7 +156,9 @@ class IntentReceiverActivity : Activity() {
                 )
             }
 
+        // Profiles: the profile shortcut processor must come before TabIntentProcessor.
         return components.intentProcessors.externalAppIntentProcessors +
+            components.intentProcessors.profileShortcutIntentProcessor +
             components.intentProcessors.addonInstallIntentProcessor +
             components.intentProcessors.fennecPageShortcutIntentProcessor +
             components.intentProcessors.externalDeepLinkIntentProcessor +

@@ -40,6 +40,7 @@ import mozilla.components.concept.engine.mediaquery.PreferredColorScheme
 import mozilla.components.concept.fetch.Client
 import mozilla.components.feature.automotive.CarUxRestrictionsFeature
 import mozilla.components.feature.awesomebar.provider.SessionAutocompleteProvider
+import mozilla.components.feature.containers.ContainerMiddleware
 import mozilla.components.feature.customtabs.store.CustomTabsServiceStore
 import mozilla.components.feature.downloads.DefaultFileSizeFormatter
 import mozilla.components.feature.downloads.DownloadEstimator
@@ -412,6 +413,7 @@ class Core(
                 AboutHomeMiddleware(homepageTitle = context.getString(R.string.tab_tray_homepage_tab)),
                 BrowserVisualCompletenessMiddleware(visualCompletenessQueue),
                 TabGroupMiddleware(tabGroupRepository = tabGroupRepository, scope = applicationScope),
+                ContainerMiddleware(context), // Profiles: persists store.state.containers
             )
 
         BrowserStore(

@@ -135,6 +135,7 @@ private fun TabContent(
                 .fillMaxWidth()
                 .tabItemListInteractionAnimation(interactionState = interactionState)
                 .background(contentBackgroundColor)
+                .profileStripe(tab.profileColor) // Profiles
                 .tabItemClickable(
                     clickHandler =
                         TabsTrayItemClickHandler(

@@ -5,6 +5,7 @@
 package org.mozilla.fenix.tabstray.data
 
 import mozilla.components.browser.state.state.BrowserState
+import mozilla.components.browser.state.state.ContainerState
 import mozilla.components.browser.state.state.TabSessionState
 
 /**
@@ -16,11 +17,14 @@ import mozilla.components.browser.state.state.TabSessionState
 data class TabData(
     val selectedTabId: String? = null,
     val tabs: List<TabSessionState> = emptyList(),
+    // Profiles: containers (profiles) by contextId, used to color profile tabs.
+    val containers: Map<String, ContainerState> = emptyMap(),
 ) {
     constructor(
         browserState: BrowserState
     ) : this(
         selectedTabId = browserState.selectedTabId,
         tabs = browserState.tabs,
+        containers = browserState.containers,
     )
 }

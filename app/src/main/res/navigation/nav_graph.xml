@@ -827,6 +827,13 @@
             app:popEnterAnim="@anim/slide_in_left"
             app:popExitAnim="@anim/slide_out_right" />
         <action
+            android:id="@+id/action_settingsFragment_to_profilesSettingsFragment"
+            app:destination="@id/profilesSettingsFragment"
+            app:enterAnim="@anim/slide_in_right"
+            app:exitAnim="@anim/slide_out_left"
+            app:popEnterAnim="@anim/slide_in_left"
+            app:popExitAnim="@anim/slide_out_right" />
+        <action
             android:id="@+id/action_settingsFragment_to_homeSettingsFragment"
             app:destination="@id/homeSettingsFragment"
             app:enterAnim="@anim/slide_in_right"
@@ -884,6 +891,14 @@
             app:argType="string"
             app:nullable="true" />
     </fragment>
+    <!-- Profiles -->
+    <fragment
+        android:id="@+id/profilesSettingsFragment"
+        android:name="org.mozilla.fenix.profiles.ProfilesSettingsFragment"
+        android:label="@string/profiles_title" />
+    <action
+        android:id="@+id/action_global_profilesSettingsFragment"
+        app:destination="@id/profilesSettingsFragment" />
     <fragment
         android:id="@+id/homeSettingsFragment"
         android:name="org.mozilla.fenix.settings.HomeSettingsFragment"

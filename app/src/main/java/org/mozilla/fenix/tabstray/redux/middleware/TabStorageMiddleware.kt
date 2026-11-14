@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import mozilla.components.browser.state.state.ContainerState
 import mozilla.components.browser.state.state.TabSessionState
 import mozilla.components.feature.tabgroups.storage.data.TabGroup
 import mozilla.components.feature.tabgroups.storage.data.TabGroupData
@@ -29,6 +30,7 @@ import mozilla.components.support.base.log.logger.Logger
 import mozilla.components.support.utils.DateTimeProvider
 import mozilla.components.support.utils.DefaultDateTimeProvider
 import org.mozilla.fenix.components.usecases.FenixBrowserUseCases
+import org.mozilla.fenix.profiles.toArgb
 import org.mozilla.fenix.tabstray.data.TabData
 import org.mozilla.fenix.tabstray.data.TabGroupTheme
 import org.mozilla.fenix.tabstray.data.TabStorageUpdate
@@ -53,6 +55,9 @@ private value class CombinedTabData(private val combinedData: Pair<TabData, TabG
 
     val selectedTabId: String?
         get() = combinedData.first.selectedTabId
+
+    val containers: Map<String, ContainerState>
+        get() = combinedData.first.containers
 
     val tabGroups: List<TabGroup>
         get() = combinedData.second.tabGroups
@@ -155,6 +160,7 @@ class TabStorageMiddleware(
                                     selectedTabId = data.selectedTabId,
                                     tabGroups = data.tabGroups,
                                     tabGroupAssignments = data.tabGroupAssignments,
+                                    containers = data.containers,
                                 )
 
                             mainScope.launch {
@@ -527,6 +533,7 @@ class TabStorageMiddleware(
         selectedTabId: String?,
         tabGroups: List<TabGroup>,
         tabGroupAssignments: Map<TabItemId, String>, // tab ID -> tab group ID
+        containers: Map<String, ContainerState> = emptyMap(),
     ): TabStorageUpdate {
         val normalItems: MutableList<Any> = mutableListOf()
         val inactiveTabs: MutableList<TabsTrayItem.Tab> = mutableListOf()
@@ -542,6 +549,7 @@ class TabStorageMiddleware(
                 TabsTrayItem.Tab(
                     tab = tab,
                     isFocused = tab.id == selectedTabId,
+                    profileColor = tab.contextId?.let { containers[it]?.color?.toArgb() },
                 )
             val assignedGroupId = tabGroupAssignments[displayTab.id]
             val assignedGroup = transformedTabGroups[assignedGroupId]

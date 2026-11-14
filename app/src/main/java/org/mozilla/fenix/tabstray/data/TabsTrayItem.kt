@@ -47,6 +47,7 @@ sealed interface TabsTrayItem {
      * @property isMediaActive Whether the tab has active media.
      * @property lastAccess The last time this tab was accessed.
      * @property isFocused Whether the tab is focused. This is only set when the tab data model is generated.
+     * @property profileColor Profiles: ARGB color of the tab's profile, null for the Default profile.
      */
     @Immutable
     data class Tab(
@@ -59,12 +60,15 @@ sealed interface TabsTrayItem {
         override val isMediaActive: Boolean,
         val lastAccess: Long,
         override val isFocused: Boolean,
+        // Profiles: ARGB color of the tab's profile, null for the Default profile.
+        val profileColor: Int? = null,
     ) : TabsTrayItem {
         override val isHomepageItem: Boolean = url.equals(ABOUT_HOME_URL, ignoreCase = true)
 
         constructor(
             tab: TabSessionState,
             isFocused: Boolean = false,
+            profileColor: Int? = null,
         ) : this(
             id = tab.id,
             url = tab.content.url,
@@ -75,6 +79,7 @@ sealed interface TabsTrayItem {
             isMediaActive = tab.mediaSessionState?.playbackState == MediaSession.PlaybackState.PLAYING,
             lastAccess = tab.lastAccess,
             isFocused = isFocused,
+            profileColor = profileColor,
         )
 
         /** Constructs a [TabThumbnailImageData] from the given tab data */

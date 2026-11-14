@@ -395,6 +395,11 @@ class SettingsFragment : PreferenceFragmentCompat(), SystemInsetsPaddedFragment 
                     SettingsFragmentDirections.actionSettingsFragmentToTabsSettingsFragment()
                 }
 
+                // Profiles
+                resources.getString(R.string.pref_key_profiles) -> {
+                    SettingsFragmentDirections.actionSettingsFragmentToProfilesSettingsFragment()
+                }
+
                 resources.getString(R.string.pref_key_home) -> {
                     SettingsFragmentDirections.actionSettingsFragmentToHomeSettingsFragment()
                 }

@@ -110,6 +110,9 @@ import org.mozilla.fenix.ext.requireComponents
 import org.mozilla.fenix.ext.runIfFragmentIsAttached
 import org.mozilla.fenix.ipprotection.ui.IPProtectionSnackbarBinding
 import org.mozilla.fenix.nimbus.FxNimbus
+import org.mozilla.fenix.profiles.isOpenInProfileSupported
+import org.mozilla.fenix.profiles.profileName
+import org.mozilla.fenix.profiles.showOpenInProfileDialog
 import org.mozilla.fenix.settings.SupportUtils
 import org.mozilla.fenix.settings.deletebrowsingdata.DefaultDeleteBrowsingDataController
 import org.mozilla.fenix.settings.deletebrowsingdata.DefaultDeleteBrowsingDataController.DataStorage
@@ -685,6 +688,27 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
                                         },
                                         onAddToHomeScreenMenuClick = {
                                             menuStore.dispatch(MenuAction.Navigate.AddToHomeScreen)
+                                        },
+                                        // Profiles
+                                        profileLabel =
+                                            browserTab?.takeIf { customTab == null && isOpenInProfileSupported(it) }?.let {
+                                                stringResource(
+                                                    R.string.profiles_open_in_profile,
+                                                    browserStore.state.profileName(context, it.contextId),
+                                                )
+                                            },
+                                        onOpenInProfileClick = {
+                                            val tabId = browserTab?.id
+                                            val navController = findNavController()
+                                            dismiss()
+                                            if (tabId != null) {
+                                                showOpenInProfileDialog(
+                                                    context = requireActivity(),
+                                                    components = requireComponents,
+                                                    tabId = tabId,
+                                                    navController = navController,
+                                                )
+                                            }
                                         },
                                         onSaveToCollectionMenuClick = {
                                             menuStore.dispatch(

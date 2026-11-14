@@ -39,6 +39,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
@@ -414,6 +416,23 @@ fun tabItemConditionalBorder(selectionState: TabsTrayItemSelectionState): Border
         null
     }
 }
+
+// Profiles: width of the colored stripe / border that marks tabs of a profile.
+private val PROFILE_MARKER_WIDTH = 4.dp
+
+/** Profiles: draws a colored stripe on the start edge when [profileColor] (ARGB) is set. */
+fun Modifier.profileStripe(profileColor: Int?): Modifier =
+    if (profileColor == null) {
+        this
+    } else {
+        drawBehind {
+            drawRect(color = Color(profileColor), size = Size(PROFILE_MARKER_WIDTH.toPx(), size.height))
+        }
+    }
+
+/** Profiles: border around a grid item of a profile tab, or null for the Default profile. */
+fun tabItemProfileBorder(profileColor: Int?): BorderStroke? =
+    profileColor?.let { BorderStroke(width = PROFILE_MARKER_WIDTH, color = Color(it)) }
 
 /** Renders a border around a [TabsTrayItem] to signify that it is in focus. */
 @Composable

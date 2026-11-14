@@ -543,6 +543,7 @@ dependencies {
     implementation project(':components:feature-automotive')
     implementation project(':components:feature-awesomebar')
     implementation project(':components:feature-contextmenu')
+    implementation project(':components:feature-containers') // Profiles
     implementation project(':components:feature-customtabs')
     implementation project(':components:feature-downloads')
     implementation project(':components:feature-findinpage')

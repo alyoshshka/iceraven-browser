@@ -190,7 +190,8 @@ private fun TabContent(
                         }
                     },
             shape = tabContentCardShape,
-            border = tabItemConditionalBorder(selectionState),
+            // Profiles: profile tabs get a colored border unless focused.
+            border = tabItemConditionalBorder(selectionState) ?: tabItemProfileBorder(tab.profileColor),
             colors = CardDefaults.cardColors(containerColor = tabGridItemContainerColor(selectionState)),
         ) {
             Column(modifier = Modifier.aspectRatio(gridItemAspectRatio)) {
