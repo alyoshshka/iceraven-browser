@@ -117,11 +117,11 @@ internal fun ProfileTargetDialog(
                     TextButton(onClick = { onChoose(container.contextId) }, modifier = Modifier.fillMaxWidth()) {
                         Text(container.name, textAlign = TextAlign.Start)
                     }
+                }
                 if (!excludeDevice) {
                     TextButton(onClick = { onChoose(null) }, modifier = Modifier.fillMaxWidth()) {
                         Text(stringResource(R.string.profiles_files_device_downloads), textAlign = TextAlign.Start)
                     }
-                }
                 }
             }
         },
