@@ -904,18 +904,6 @@
                 tools:node="remove" />
         </provider>
 
-        <!-- Profiles: read-only system file picker roots for private profile folders -->
-        <provider
-            android:name=".profiles.ProfileFilesProvider"
-            android:authorities="${applicationId}.profilefiles"
-            android:exported="true"
-            android:grantUriPermissions="true"
-            android:permission="android.permission.MANAGE_DOCUMENTS">
-            <intent-filter>
-                <action android:name="android.content.action.DOCUMENTS_PROVIDER" />
-            </intent-filter>
-        </provider>
-
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"

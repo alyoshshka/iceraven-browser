@@ -18,6 +18,7 @@ class DownloadLocationManager(
     private val contentResolver: ContentResolver,
 ) {
     private val logger = Logger("DownloadLocationManager")
+    private val ignoreCustomLocation: Boolean get() = true
 
     /** The validated path for the default download location. */
     val defaultLocation: String
@@ -32,6 +33,9 @@ class DownloadLocationManager(
      */
     private fun getDownloadsDefaultLocation(): String {
         val defaultFallbackPath = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS).path
+
+        // Profiles: the custom download location is ignored; downloads are app-only (see ProfileStorage).
+        if (ignoreCustomLocation) return defaultFallbackPath
 
         val configuredLocation = settings.downloadsDefaultLocation
 

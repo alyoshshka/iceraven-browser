@@ -67,7 +67,7 @@ fun RenameAndChangeLocationDialogContent(
     friendlyPath: String,
     title: String,
     onFileNameChange: (String) -> Unit,
-    onDirectorySelect: () -> Unit,
+    onDirectorySelect: (() -> Unit)?, // Profiles: null hides the location row (downloads are app-only)
     onConfirm: () -> Unit,
     onCancel: () -> Unit,
 ) {
@@ -138,10 +138,12 @@ fun RenameAndChangeLocationDialogContent(
                 extension = extension.ifEmpty { null },
             )
 
-            DirectorySelectionItem(
-                friendlyPath = friendlyPath,
-                onDirectorySelect = onDirectorySelect,
-            )
+            if (onDirectorySelect != null) {
+                DirectorySelectionItem(
+                    friendlyPath = friendlyPath,
+                    onDirectorySelect = onDirectorySelect,
+                )
+            }
         }
 
         DialogActionButtons(

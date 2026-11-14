@@ -37,7 +37,7 @@ data class FileItem(
     val status: Status,
     val timeCategory: TimeCategory,
     val description: String,
-    // Profiles: owning profile of the file (null = shared public Downloads).
+    // Profiles: owning profile of the file (null = Device Downloads; "default" = the default profile).
     val profileId: String? = null,
     val profileName: String? = null,
     val profileColor: Int? = null,

@@ -26,13 +26,15 @@ import org.mozilla.fenix.R
 import org.mozilla.fenix.downloads.listscreen.store.FileItem
 import org.mozilla.fenix.downloads.listscreen.store.ProfileFilter
 import org.mozilla.fenix.ext.components
+import org.mozilla.fenix.profiles.ProfileStorage
 import org.mozilla.fenix.theme.FirefoxTheme
 
-/** Profiles: chips All / Shared / each profile that owns a listed file. */
+/** Profiles: chips All / Default / each profile with files / Device (only if such files exist). Each profile that owns a listed file. */
 @Composable
 internal fun ProfileFilters(
     selected: ProfileFilter,
     profiles: List<FileItem>,
+    showDevice: Boolean,
     modifier: Modifier = Modifier,
     onSelected: (ProfileFilter) -> Unit,
 ) {
@@ -51,10 +53,10 @@ internal fun ProfileFilters(
         }
         item {
             SelectableChip(
-                text = stringResource(R.string.profiles_files_shared),
-                selected = selected == ProfileFilter.Shared,
+                text = stringResource(R.string.profiles_files_default),
+                selected = selected == ProfileFilter.Profile(ProfileStorage.DEFAULT_ID),
                 modifier = Modifier.height(36.dp),
-                onClick = { onSelected(ProfileFilter.Shared) },
+                onClick = { onSelected(ProfileFilter.Profile(ProfileStorage.DEFAULT_ID)) },
             )
         }
         items(items = profiles, key = { it.profileId ?: "" }) { item ->
@@ -66,21 +68,31 @@ internal fun ProfileFilters(
                 onClick = { onSelected(ProfileFilter.Profile(id)) },
             )
         }
+        if (showDevice) {
+            item {
+                SelectableChip(
+                    text = stringResource(R.string.profiles_files_device),
+                    selected = selected == ProfileFilter.Device,
+                    modifier = Modifier.height(36.dp),
+                    onClick = { onSelected(ProfileFilter.Device) },
+                )
+            }
+        }
     }
 }
 
 /**
- * Profiles: simple chooser dialog listing "Shared" and every existing profile.
+ * Profiles: simple chooser dialog listing Default, every existing profile and "Device Downloads".
  *
  * @param excludedIds Profile ids not offered (the current location).
- * @param excludeShared Whether "Shared" is not offered.
- * @param onChoose Invoked with the chosen profile id, or null for Shared.
+ * @param excludeDevice Whether "Device Downloads" is not offered.
+ * @param onChoose Invoked with the chosen profile id, or null for Device Downloads.
  */
 @Composable
 internal fun ProfileTargetDialog(
     title: String,
     excludedIds: Set<String>,
-    excludeShared: Boolean,
+    excludeDevice: Boolean,
     onChoose: (String?) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -93,15 +105,23 @@ internal fun ProfileTargetDialog(
         title = { Text(title) },
         text = {
             Column(modifier = Modifier.fillMaxWidth()) {
-                if (!excludeShared) {
-                    TextButton(onClick = { onChoose(null) }, modifier = Modifier.fillMaxWidth()) {
-                        Text(stringResource(R.string.profiles_files_shared), textAlign = TextAlign.Start)
+                if (ProfileStorage.DEFAULT_ID !in excludedIds) {
+                    TextButton(
+                        onClick = { onChoose(ProfileStorage.DEFAULT_ID) },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(stringResource(R.string.profiles_files_default), textAlign = TextAlign.Start)
                     }
                 }
                 profiles.forEach { container ->
                     TextButton(onClick = { onChoose(container.contextId) }, modifier = Modifier.fillMaxWidth()) {
                         Text(container.name, textAlign = TextAlign.Start)
                     }
+                if (!excludeDevice) {
+                    TextButton(onClick = { onChoose(null) }, modifier = Modifier.fillMaxWidth()) {
+                        Text(stringResource(R.string.profiles_files_device_downloads), textAlign = TextAlign.Start)
+                    }
+                }
                 }
             }
         },

@@ -88,7 +88,9 @@ class DownloadUIMapperMiddleware(
     private suspend fun DownloadState.toFileItem(): FileItem {
         val profileId = profileStorage?.profileOfPath(directoryPath)
         val container = profileId?.let { browserStore.state.containers[it] }
-        val profileName = profileId?.let { container?.name ?: profileStorage.knownProfiles()[it] ?: it }
+        val profileName = profileId?.let {
+            if (it == ProfileStorage.DEFAULT_ID) "Default" else container?.name ?: profileStorage.knownProfiles()[it] ?: it
+        }
         return toFileItem(profileId, profileName, container?.color?.toArgb())
     }
 

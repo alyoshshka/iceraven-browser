@@ -1216,7 +1216,14 @@ abstract class BaseBrowserFragment :
                                 null
                             },
                         ),
-                ),
+                ).also {
+                    // Profiles: ask "Raven files / Device files / Camera" before the system picker.
+                    it.fileSourceChooser = org.mozilla.fenix.profiles.RavenFilePicker(
+                        activity = requireActivity(),
+                        store = store,
+                        customTabId = customTabSessionId,
+                    )
+                },
             owner = this,
             view = view,
         )

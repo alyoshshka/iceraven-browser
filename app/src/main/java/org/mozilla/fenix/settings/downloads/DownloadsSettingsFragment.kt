@@ -91,7 +91,8 @@ class DownloadsSettingsFragment : PreferenceFragmentCompat(), SystemInsetsPadded
 
         val fileStorageCategory =
             findPreference<PreferenceCategory>(getString(R.string.pref_key_downloads_storage_category))
-        fileStorageCategory?.isVisible = FxNimbus.features.downloadsCustomLocation.value().enabled
+        // Profiles: no custom download location; files stay in the app.
+        fileStorageCategory?.isVisible = false
     }
 
     private fun setUpDeleteBehaviorPreference() {

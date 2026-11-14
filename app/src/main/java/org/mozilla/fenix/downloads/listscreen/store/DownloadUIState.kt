@@ -4,6 +4,7 @@
 
 package org.mozilla.fenix.downloads.listscreen.store
 
+import org.mozilla.fenix.profiles.ProfileStorage
 import mozilla.components.lib.state.State
 
 /**
@@ -101,10 +102,14 @@ data class DownloadUIState(
 
     /** Profiles: the private profiles that own at least one listed file (id to name and color). */
     val profileChips: List<FileItem> =
-        visibleItems.filter { it.profileId != null }.distinctBy { it.profileId }
+        visibleItems.filter { it.profileId != null && it.profileId != ProfileStorage.DEFAULT_ID }
+            .distinctBy { it.profileId }
 
-    /** Profiles: chips are shown only when some file belongs to a profile. */
-    val isProfileFilterVisible: Boolean = profileChips.isNotEmpty()
+    /** Profiles: whether some file is outside the app (a Device chip is shown). */
+    val hasDeviceFiles: Boolean = visibleItems.any { it.profileId == null }
+
+    /** Profiles: chips are shown only when files exist beyond the Default profile. */
+    val isProfileFilterVisible: Boolean = profileChips.isNotEmpty() || hasDeviceFiles
 
     /** The list of content type filters to display. */
     val filtersToDisplay: List<FileItem.ContentTypeFilter> =
@@ -214,8 +219,8 @@ sealed interface ProfileFilter {
         override fun matches(item: FileItem) = true
     }
 
-    /** Only files in the shared public Downloads folder. */
-    data object Shared : ProfileFilter {
+    /** Only files in the public Device Downloads folder (outside the app). */
+    data object Device : ProfileFilter {
         override fun matches(item: FileItem) = item.profileId == null
     }
 

@@ -93,10 +93,10 @@ import org.mozilla.fenix.theme.FirefoxTheme
  *
  * @param downloadsStore The [DownloadUIStore] used to manage and access the state of download items.
  * @param onItemClick Callback invoked when a download item is clicked.
- * @param onMoveItems Profiles: moves the items to a profile id (null = Shared).
+ * @param onMoveItems Profiles: moves the items to a profile id (null = Device Downloads).
  * @param onExportItem Profiles: exports the item out of the app.
  * @param onImportClick Profiles: starts the file import picker.
- * @param onImportTarget Profiles: imports the picked files into a profile id (null = Shared).
+ * @param onImportTarget Profiles: imports the picked files into a profile id (null = Device Downloads).
  * @param onImportCancelled Profiles: the import target chooser was dismissed.
  */
 @Suppress("LongMethod", "CognitiveComplexMethod")
@@ -172,7 +172,7 @@ fun DownloadsScreen(
         ProfileTargetDialog(
             title = stringResource(R.string.profiles_files_move_to),
             excludedIds = moving.map { it.profileId }.distinct().singleOrNull()?.let { setOf(it) } ?: emptySet(),
-            excludeShared = moving.all { it.profileId == null },
+            excludeDevice = moving.all { it.profileId == null },
             onChoose = { target ->
                 downloadsStore.dispatch(DownloadUIAction.DismissProfileDialog)
                 downloadsStore.dispatch(DownloadUIAction.ExitEditMode)
@@ -184,7 +184,7 @@ fun DownloadsScreen(
         ProfileTargetDialog(
             title = stringResource(R.string.profiles_files_import_to),
             excludedIds = emptySet(),
-            excludeShared = false,
+            excludeDevice = false,
             onChoose = { target ->
                 downloadsStore.dispatch(DownloadUIAction.DismissProfileDialog)
                 onImportTarget(target)
@@ -462,6 +462,7 @@ private fun DownloadsScreenContent(
             ProfileFilters(
                 selected = uiState.profileFilter,
                 profiles = uiState.profileChips,
+                showDevice = uiState.hasDeviceFiles,
                 modifier =
                     Modifier.width(FirefoxTheme.layout.size.containerMaxWidth)
                         .padding(top = FirefoxTheme.layout.space.static200),

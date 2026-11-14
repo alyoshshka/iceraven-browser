@@ -13,7 +13,6 @@ import android.view.WindowManager
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.Spinner
-import android.widget.Switch
 import androidx.appcompat.app.AlertDialog
 import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
@@ -110,22 +109,12 @@ class ProfilesSettingsFragment : PreferenceFragmentCompat(), SystemInsetsPaddedF
             existing?.let { setSelection(colors.indexOf(it.color).coerceAtLeast(0)) }
         }
         val storage = ProfileStorage(requireContext())
-        val privateSwitch = Switch(requireContext()).apply {
-            text = getString(R.string.profiles_private_downloads)
-            isChecked = existing?.let { storage.isPrivate(it.contextId) } ?: true
-        }
-        val pickerSwitch = Switch(requireContext()).apply {
-            text = getString(R.string.profiles_picker_visible)
-            isChecked = existing?.let { storage.isPickerVisible(it.contextId) } ?: true
-        }
         val padding = (DIALOG_PADDING_DP * resources.displayMetrics.density).toInt()
         val layout = LinearLayout(requireContext()).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(padding, padding / 2, padding, 0)
             addView(input)
             addView(spinner)
-            addView(privateSwitch)
-            addView(pickerSwitch)
         }
 
         val dialog = AlertDialog.Builder(requireContext())
@@ -137,8 +126,6 @@ class ProfilesSettingsFragment : PreferenceFragmentCompat(), SystemInsetsPaddedF
                 if (name.isNotEmpty()) {
                     // Adding a container with an existing contextId replaces it (see ContainerReducer).
                     val contextId = existing?.contextId ?: UUID.randomUUID().toString()
-                    storage.setPrivate(contextId, privateSwitch.isChecked)
-                    storage.setPickerVisible(contextId, pickerSwitch.isChecked)
                     storage.setName(contextId, name)
                     requireComponents.core.store.dispatch(
                         ContainerAction.AddContainerAction(

@@ -142,15 +142,8 @@ class RenameAndChangeLocationDialogFragment : DialogFragment(), OnEnterAnimation
         return ComposeView(requireContext()).apply {
             setContent {
                 FirefoxTheme {
-                    val friendlyPath =
-                        try {
-                            downloadLocationFormatter.getFriendlyPath(dialogState.directoryPath)
-                        } catch (e: MissingUriPermission) {
-                            logger.warn("Resetting download location to default due to lost permissions.", e)
-                            val defaultLocation =
-                                Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS).path
-                            downloadLocationFormatter.getFriendlyPath(defaultLocation)
-                        }
+                    // Profiles: no location row; downloads stay in the app.
+                    val friendlyPath = ""
 
                     RenameAndChangeLocationDialogContent(
                         dialogState = dialogState,
@@ -159,7 +152,7 @@ class RenameAndChangeLocationDialogFragment : DialogFragment(), OnEnterAnimation
                         onFileNameChange = { newFileName ->
                             dialogState = dialogState.copy(fileName = newFileName)
                         },
-                        onDirectorySelect = { launchDirectoryPicker() },
+                        onDirectorySelect = null,
                         onConfirm = {
                             if (promptAbuserDetector.areDialogsBeingAbused()) {
                                 promptAbuserDetector.updateJSDialogAbusedState()

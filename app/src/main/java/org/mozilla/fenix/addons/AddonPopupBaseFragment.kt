@@ -126,6 +126,8 @@ abstract class AddonPopupBaseFragment :
                     downloadFileUtils = downloadFileUtils,
                     fragmentManager = childFragmentManager,
                     tabId = it.id,
+                    // Profiles: downloads are app-only (this tab's profile, or Default).
+                    directoryForContext = org.mozilla.fenix.profiles.ProfileStorage(requireContext())::downloadDirFor,
                     downloadManager =
                         FetchDownloadManager(
                             requireContext().applicationContext,
@@ -249,12 +251,8 @@ abstract class AddonPopupBaseFragment :
                     0,
                     Status.INITIATED,
                     userAgent,
-                    directoryPath =
-                        DownloadLocationManager(
-                                requireComponents.settings,
-                                requireContext().contentResolver,
-                            )
-                            .defaultLocation,
+                    // Profiles: app-only default directory (DownloadsFeature re-routes by the tab's profile).
+                    directoryPath = org.mozilla.fenix.profiles.ProfileStorage(requireContext()).downloadDirFor(null),
                     private = isPrivate,
                     skipConfirmation = skipConfirmation,
                     openInApp = openInApp,

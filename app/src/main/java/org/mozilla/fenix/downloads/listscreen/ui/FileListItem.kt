@@ -160,8 +160,8 @@ private fun FileListItemMainContent(
 
     SelectableListItem(
         label = fileItem.fileName ?: fileItem.url,
-        // Profiles: "<profile> · " or "Shared · " prefix.
-        description = "${fileItem.profileName ?: stringResource(R.string.profiles_files_shared)} · ${fileItem.description}",
+        // Profiles: "<profile> · ", "Default · " or "Device · " prefix.
+        description = "${fileItem.profileName ?: stringResource(R.string.profiles_files_device)} · ${fileItem.description}",
         icon = if (isFailed) iconsR.drawable.mozac_ic_critical_24 else fileItem.icon,
         isSelected = isSelected,
         modifier =
