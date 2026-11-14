@@ -106,6 +106,21 @@ android {
         }
     }
 
+    // Raven: optional release signing, enabled with -PravenKeystoreProps=<file with storeFile, storePassword,
+    // keyAlias, keyPassword>. Without the property the forkRelease build stays unsigned.
+    signingConfigs {
+        if (project.hasProperty("ravenKeystoreProps")) {
+            def ravenProps = new Properties()
+            file(project.property("ravenKeystoreProps")).withInputStream { ravenProps.load(it) }
+            create("ravenRelease") {
+                storeFile = file(ravenProps.getProperty("storeFile"))
+                storePassword = ravenProps.getProperty("storePassword")
+                keyAlias = ravenProps.getProperty("keyAlias")
+                keyPassword = ravenProps.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         debug {
             shrinkResources = false
@@ -180,7 +195,11 @@ android {
         }
         forkRelease releaseTemplate >> {
             buildConfigField "boolean", "USE_RELEASE_VERSIONING", "true"
+            // Raven: the applicationId is overridden to app.ravenprofiles in androidComponents.onVariants below.
             applicationIdSuffix ".iceraven"
+            if (signingConfigs.findByName("ravenRelease") != null) {
+                signingConfig = signingConfigs.getByName("ravenRelease")
+            }
             def deepLinkSchemeValue = "iceraven"
             buildConfigField "String", "DEEP_LINK_SCHEME", "\"$deepLinkSchemeValue\""
             manifestPlaceholders.putAll([
@@ -322,6 +341,10 @@ android {
 
 androidComponents {
     onVariants(selector().all()) { variant ->
+        // Raven: release builds ship as their own app, independent of the Iceraven application id.
+        if (variant.buildType == 'forkRelease') {
+            variant.applicationId.set("app.ravenprofiles")
+        }
         def buildType = variant.buildType
 
         project.logger.debug("----------------------------------------------")
