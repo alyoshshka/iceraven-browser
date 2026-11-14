@@ -110,7 +110,7 @@ import org.mozilla.fenix.ext.requireComponents
 import org.mozilla.fenix.ext.runIfFragmentIsAttached
 import org.mozilla.fenix.ipprotection.ui.IPProtectionSnackbarBinding
 import org.mozilla.fenix.nimbus.FxNimbus
-import org.mozilla.fenix.profiles.OpenInProfileForTab
+import org.mozilla.fenix.profiles.OpenInProfileDialogFragment
 import org.mozilla.fenix.profiles.isOpenInProfileSupported
 import org.mozilla.fenix.settings.SupportUtils
 import org.mozilla.fenix.settings.deletebrowsingdata.DefaultDeleteBrowsingDataController
@@ -287,20 +287,6 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
             }
 
             var isExtensionsExpanded by remember { mutableStateOf(false) }
-
-            // Profiles: tab for which the "Open in profile" dialog is shown, null when hidden.
-            var openInProfileTabId by remember { mutableStateOf<String?>(null) }
-            openInProfileTabId?.let { tabId ->
-                OpenInProfileForTab(
-                    components = components,
-                    tabId = tabId,
-                    navController = findNavController(),
-                    onDismiss = {
-                        openInProfileTabId = null
-                        dismiss()
-                    },
-                )
-            }
 
             val isMoreMenuExpanded by remember {
                 menuStore.stateFlow.map { state -> state.isMoreMenuExpanded }
@@ -707,7 +693,11 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
                                             browserTab != null && customTab == null &&
                                                 isOpenInProfileSupported(browserTab),
                                         onOpenInProfileClick = {
-                                            openInProfileTabId = browserTab?.id
+                                            // Dismiss the menu first, then show the dialog from the activity.
+                                            val tabId = browserTab?.id
+                                            val fm = parentFragmentManager
+                                            dismiss()
+                                            if (tabId != null) OpenInProfileDialogFragment.show(fm, tabId)
                                         },
                                         onSaveToCollectionMenuClick = {
                                             menuStore.dispatch(

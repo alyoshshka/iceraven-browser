@@ -46,13 +46,17 @@ object ProfileFileOps {
     suspend fun move(context: Context, store: BrowserStore, items: Collection<FileItem>, target: String?): ProfileFileResult {
         val app = context.applicationContext
         var moved = 0
+        var unchanged = 0
         withContext(Dispatchers.IO) {
             val storage = ProfileStorage(app)
             val fileUtils = DefaultDownloadFileUtils(app)
             for (item in items) {
                 val download = store.state.downloads[item.id] ?: continue
                 val name = download.fileName ?: continue
-                if (storage.profileOfPath(download.directoryPath) == target) continue
+                if (storage.profileOfPath(download.directoryPath) == target) {
+                    unchanged++
+                    continue
+                }
                 try {
                     val result = moveOne(app, storage, fileUtils, download, name, target) ?: continue
                     store.dispatch(
@@ -68,7 +72,7 @@ object ProfileFileOps {
                 }
             }
         }
-        return ProfileFileResult.Moved(moved, items.size)
+        return ProfileFileResult.Moved(moved, items.size, unchanged)
     }
 
     /** Returns the new (directoryPath, fileName), or null when the file could not be moved. */
@@ -248,8 +252,8 @@ object ProfileFileOps {
 
 /** Profiles: outcome of a file operation, shown as a snackbar on the Downloads screen. */
 sealed interface ProfileFileResult {
-    /** [moved] of [total] files were moved. */
-    data class Moved(val moved: Int, val total: Int) : ProfileFileResult
+    /** [moved] of [total] files were moved; [unchanged] were already in the target and are not failures. */
+    data class Moved(val moved: Int, val total: Int, val unchanged: Int = 0) : ProfileFileResult
 
     /** A file was exported ([success]) or not. */
     data class Exported(val success: Boolean) : ProfileFileResult

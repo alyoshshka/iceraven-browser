@@ -73,6 +73,17 @@ data class DownloadUIState(
         }
 
     /**
+     * Profiles: the profile filter actually applied. Falls back to [ProfileFilter.All] when no visible file matches the
+     * selected filter (e.g. its last file was moved away), so the list never stays empty behind a hidden filter.
+     */
+    val selectedProfileFilter: ProfileFilter
+        get() = if (profileFilter == ProfileFilter.All || visibleItems.any { profileFilter.matches(it) }) {
+            profileFilter
+        } else {
+            ProfileFilter.All
+        }
+
+    /**
      * The list of items to display grouped by the created time of the item. The ungrouped list of items to display,
      * excluding any items that are pending deletion and that match the selected content type filter and the search
      * query.
@@ -84,7 +95,7 @@ data class DownloadUIState(
             }
             .filter { selectedContentTypeFilter.predicate(it.contentType) }
             .filter { it.stringToMatchForSearchQuery.contains(searchQuery, ignoreCase = true) }
-            .filter { profileFilter.matches(it) }
+            .filter { selectedProfileFilter.matches(it) }
 
     /** The list of items to display grouped by the created time of the item. */
     private val itemsToDisplay: List<DownloadListItem> =

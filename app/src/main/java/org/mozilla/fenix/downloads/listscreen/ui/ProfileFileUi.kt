@@ -157,12 +157,21 @@ internal fun ProfileTargetDialog(
 internal fun profileFileResultMessage(context: Context, result: ProfileFileResult): String {
     val res = context.resources
     return when (result) {
-        is ProfileFileResult.Moved -> when {
-            result.moved == 0 -> context.getString(R.string.profiles_files_move_failed)
-            result.moved == result.total -> res.getQuantityString(R.plurals.profiles_files_moved, result.moved, result.moved)
-            else -> res.getQuantityString(
-                R.plurals.profiles_files_moved_partial, result.total, result.moved, result.total,
-            )
+        is ProfileFileResult.Moved -> {
+            val failed = result.total - result.moved - result.unchanged
+            when {
+                failed > 0 && result.moved == 0 -> context.getString(R.string.profiles_files_move_failed)
+                failed > 0 -> res.getQuantityString(
+                    R.plurals.profiles_files_moved_partial, result.total, result.moved, result.total,
+                )
+                result.moved == 0 -> context.getString(R.string.profiles_files_already_there)
+                result.unchanged > 0 -> context.getString(
+                    R.string.profiles_files_moved_already_there,
+                    res.getQuantityString(R.plurals.profiles_files_moved, result.moved, result.moved),
+                    result.unchanged,
+                )
+                else -> res.getQuantityString(R.plurals.profiles_files_moved, result.moved, result.moved)
+            }
         }
         is ProfileFileResult.Exported ->
             context.getString(if (result.success) R.string.profiles_files_exported else R.string.profiles_files_export_failed)

@@ -56,6 +56,8 @@
     <string name="profiles_files_export_failed" translatable="false">Couldn’t export file</string>
     <string name="profiles_files_move_failed" translatable="false">Couldn’t move files</string>
     <string name="profiles_files_import_failed" translatable="false">Couldn’t import files</string>
+    <string name="profiles_files_already_there" translatable="false">Already in that location</string>
+    <string name="profiles_files_moved_already_there" translatable="false">%1$s, %2$d already there</string>
     <plurals name="profiles_files_moved" translatable="false">
         <item quantity="one">Moved %d file</item>
         <item quantity="other">Moved %d files</item>

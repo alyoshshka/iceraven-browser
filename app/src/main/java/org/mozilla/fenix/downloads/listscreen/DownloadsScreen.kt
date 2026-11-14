@@ -481,7 +481,7 @@ private fun DownloadsScreenContent(
                     if (uiState.isProfileFilterVisible) {
                         {
                             ProfileFilterChip(
-                                selected = uiState.profileFilter,
+                                selected = uiState.selectedProfileFilter,
                                 profiles = uiState.profileChips,
                                 showDevice = uiState.hasDeviceFiles,
                                 onSelected = onProfileFilterSelected,

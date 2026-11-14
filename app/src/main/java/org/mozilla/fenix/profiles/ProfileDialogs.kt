@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -21,6 +22,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -42,12 +44,13 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.tooling.preview.PreviewLightDark
 import androidx.compose.ui.unit.dp
 import mozilla.components.browser.state.state.ContainerState
 import mozilla.components.compose.base.button.TextButton
-import mozilla.components.compose.base.textfield.TextField
 import mozilla.components.feature.prompts.R as promptsR
 import mozilla.components.ui.icons.R as iconsR
 import org.mozilla.fenix.R
@@ -71,7 +74,12 @@ fun ProfileEditDialog(
     onDismiss: () -> Unit,
     onSave: (name: String, color: ContainerState.Color) -> Unit,
 ) {
-    var name by remember { mutableStateOf(existing?.name ?: "") }
+    // TextFieldValue so the cursor starts at the end of the prefilled name.
+    var nameValue by remember {
+        val initial = existing?.name ?: ""
+        mutableStateOf(TextFieldValue(initial, TextRange(initial.length)))
+    }
+    val name = nameValue.text
     var color by remember { mutableStateOf(existing?.color ?: defaultColor) }
     var nameError by remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
@@ -91,20 +99,35 @@ fun ProfileEditDialog(
         text = {
             // Scrollable so that the buttons stay reachable with the on-screen keyboard.
             Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                TextField(
-                    value = name,
+                OutlinedTextField(
+                    value = nameValue,
                     onValueChange = {
-                        name = it
+                        nameValue = it
                         nameError = false
                     },
-                    placeholder = "",
-                    errorText = stringResource(R.string.profiles_name_error),
-                    label = stringResource(R.string.profiles_name_label),
+                    modifier = Modifier.fillMaxWidth().focusRequester(focusRequester),
+                    textStyle = FirefoxTheme.typography.body1,
+                    label = {
+                        Text(
+                            text = stringResource(R.string.profiles_name_label),
+                            style = FirefoxTheme.typography.caption,
+                        )
+                    },
                     isError = nameError,
+                    supportingText = if (nameError) {
+                        {
+                            Text(
+                                text = stringResource(R.string.profiles_name_error),
+                                style = FirefoxTheme.typography.caption,
+                            )
+                        }
+                    } else {
+                        null
+                    },
+                    singleLine = true,
                     keyboardOptions = KeyboardOptions(
                         capitalization = KeyboardCapitalization.Sentences,
                     ),
-                    modifier = Modifier.focusRequester(focusRequester),
                 )
 
                 Spacer(modifier = Modifier.height(16.dp))

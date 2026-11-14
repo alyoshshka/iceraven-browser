@@ -14,7 +14,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.navigation.NavController
+import android.os.Bundle
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import androidx.compose.ui.platform.ComposeView
+import androidx.fragment.app.DialogFragment
+import androidx.fragment.app.FragmentManager
+import androidx.navigation.findNavController
 import mozilla.components.browser.state.selector.findTab
 import mozilla.components.browser.state.state.BrowserState
 import mozilla.components.browser.state.state.ContainerState
@@ -24,6 +31,7 @@ import mozilla.components.feature.prompts.R as promptsR
 import org.mozilla.fenix.NavGraphDirections
 import org.mozilla.fenix.R
 import org.mozilla.fenix.components.Components
+import org.mozilla.fenix.ext.components
 import org.mozilla.fenix.compose.list.RadioButtonListItem
 import org.mozilla.fenix.theme.FirefoxTheme
 
@@ -98,31 +106,60 @@ fun OpenInProfileDialog(
     )
 }
 
-/** Profiles: shows [OpenInProfileDialog] for the tab [tabId] and opens it in the chosen profile. */
-@Composable
-fun OpenInProfileForTab(
-    components: Components,
-    tabId: String,
-    navController: NavController,
-    onDismiss: () -> Unit,
-) {
-    val store = components.core.store
-    val containers = remember { store.state.containers.values.sortedBy { it.name.lowercase() } }
-    val currentContextId = remember { store.state.findTab(tabId)?.contextId }
+/**
+ * Profiles: hosts [OpenInProfileDialog] outside the main menu sheet, so the menu can be dismissed first.
+ * Shown with [show] from the activity's fragment manager.
+ */
+class OpenInProfileDialogFragment : DialogFragment() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        // Transparent host window; the visible dialog is the Compose AlertDialog.
+        setStyle(STYLE_NO_FRAME, android.R.style.Theme_Translucent_NoTitleBar)
+    }
 
-    OpenInProfileDialog(
-        containers = containers,
-        currentContextId = currentContextId,
-        onProfileSelected = { contextId ->
-            onDismiss()
-            openInProfile(components, tabId, contextId)
-        },
-        onManageProfiles = {
-            onDismiss()
-            navController.navigate(NavGraphDirections.actionGlobalProfilesSettingsFragment())
-        },
-        onDismiss = onDismiss,
-    )
+    override fun onCreateView(
+        inflater: LayoutInflater,
+        container: ViewGroup?,
+        savedInstanceState: Bundle?,
+    ): View {
+        val tabId = requireArguments().getString(ARG_TAB_ID).orEmpty()
+        val components = requireContext().components
+        return ComposeView(requireContext()).apply {
+            setContent {
+                FirefoxTheme {
+                    val store = components.core.store
+                    val containers = remember { store.state.containers.values.sortedBy { it.name.lowercase() } }
+                    val currentContextId = remember { store.state.findTab(tabId)?.contextId }
+                    OpenInProfileDialog(
+                        containers = containers,
+                        currentContextId = currentContextId,
+                        onProfileSelected = { contextId ->
+                            dismissAllowingStateLoss()
+                            openInProfile(components, tabId, contextId)
+                        },
+                        onManageProfiles = {
+                            dismissAllowingStateLoss()
+                            requireActivity().findNavController(R.id.container)
+                                .navigate(NavGraphDirections.actionGlobalProfilesSettingsFragment())
+                        },
+                        onDismiss = { dismissAllowingStateLoss() },
+                    )
+                }
+            }
+        }
+    }
+
+    companion object {
+        private const val TAG = "OpenInProfileDialog"
+        private const val ARG_TAB_ID = "tab_id"
+
+        /** Shows the dialog for [tabId] using [fragmentManager]. */
+        fun show(fragmentManager: FragmentManager, tabId: String) {
+            OpenInProfileDialogFragment().apply {
+                arguments = Bundle().apply { putString(ARG_TAB_ID, tabId) }
+            }.show(fragmentManager, TAG)
+        }
+    }
 }
 
 private fun openInProfile(components: Components, tabId: String, contextId: String?) {
