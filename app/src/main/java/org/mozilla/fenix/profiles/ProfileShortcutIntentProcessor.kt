@@ -50,7 +50,9 @@ class ProfileShortcutIntentProcessor(
 
         val contextId = intent.getStringExtra(EXTRA_PROFILE_CONTEXT_ID)
         // A shortcut of a deleted profile must not silently create a new cookie jar; let others handle it.
-        if (contextId != null && !store.state.containers.containsKey(contextId)) return false
+        // Containers load asynchronously, so on a cold start the map is still empty: trust the shortcut then.
+        val containers = store.state.containers
+        if (contextId != null && containers.isNotEmpty() && !containers.containsKey(contextId)) return false
         val desktop = intent.getBooleanExtra(EXTRA_PROFILE_DESKTOP, false)
 
         val existing = findExistingTab(contextId, host)
