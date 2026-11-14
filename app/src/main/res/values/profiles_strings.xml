@@ -18,10 +18,12 @@
     <string name="profiles_cancel" translatable="false">Cancel</string>
     <string name="profiles_delete" translatable="false">Delete</string>
     <string name="profiles_delete_confirm_title" translatable="false">Delete profile \"%1$s\"?</string>
-    <string name="profiles_delete_confirm_message" translatable="false">All tabs of this profile will be closed and its cookies, logins and site data will be erased.</string>
+    <string name="profiles_delete_confirm_message" translatable="false">All tabs of this profile will be closed and its cookies, logins and site data will be erased. Its private downloaded files will be deleted too.</string>
     <string name="profiles_empty" translatable="false">No profiles yet</string>
     <string name="profiles_open_in_profile" translatable="false">Open in profile (current: %1$s)</string>
     <string name="profiles_open_in_profile_title" translatable="false">Open in profile</string>
     <string name="profiles_manage" translatable="false">Manage profiles…</string>
     <string name="profiles_shortcut_label" translatable="false">%1$s (%2$s)</string>
+    <string name="profiles_private_downloads" translatable="false">Private downloads (kept inside the app)</string>
+    <string name="profiles_picker_visible" translatable="false">Show files in system file picker</string>
 </resources>

@@ -13,6 +13,7 @@ import android.view.WindowManager
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.Spinner
+import android.widget.Switch
 import androidx.appcompat.app.AlertDialog
 import androidx.preference.Preference
 import androidx.preference.PreferenceFragmentCompat
@@ -47,6 +48,10 @@ class ProfilesSettingsFragment : PreferenceFragmentCompat(), SystemInsetsPaddedF
         val context = requireContext()
         val screen = preferenceScreen
         screen.removeAll()
+        // Keep the names cache (used by the system file picker provider) in sync with the store.
+        val storage = ProfileStorage(context)
+        val known = storage.knownProfiles()
+        state.containers.values.forEach { if (known[it.contextId] != it.name) storage.setName(it.contextId, it.name) }
 
         screen.addPreference(
             Preference(context).apply {
@@ -104,12 +109,23 @@ class ProfilesSettingsFragment : PreferenceFragmentCompat(), SystemInsetsPaddedF
             )
             existing?.let { setSelection(colors.indexOf(it.color).coerceAtLeast(0)) }
         }
+        val storage = ProfileStorage(requireContext())
+        val privateSwitch = Switch(requireContext()).apply {
+            text = getString(R.string.profiles_private_downloads)
+            isChecked = existing?.let { storage.isPrivate(it.contextId) } ?: true
+        }
+        val pickerSwitch = Switch(requireContext()).apply {
+            text = getString(R.string.profiles_picker_visible)
+            isChecked = existing?.let { storage.isPickerVisible(it.contextId) } ?: true
+        }
         val padding = (DIALOG_PADDING_DP * resources.displayMetrics.density).toInt()
         val layout = LinearLayout(requireContext()).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(padding, padding / 2, padding, 0)
             addView(input)
             addView(spinner)
+            addView(privateSwitch)
+            addView(pickerSwitch)
         }
 
         val dialog = AlertDialog.Builder(requireContext())
@@ -120,10 +136,14 @@ class ProfilesSettingsFragment : PreferenceFragmentCompat(), SystemInsetsPaddedF
                 val name = input.text.toString().trim()
                 if (name.isNotEmpty()) {
                     // Adding a container with an existing contextId replaces it (see ContainerReducer).
+                    val contextId = existing?.contextId ?: UUID.randomUUID().toString()
+                    storage.setPrivate(contextId, privateSwitch.isChecked)
+                    storage.setPickerVisible(contextId, pickerSwitch.isChecked)
+                    storage.setName(contextId, name)
                     requireComponents.core.store.dispatch(
                         ContainerAction.AddContainerAction(
                             ContainerState(
-                                contextId = existing?.contextId ?: UUID.randomUUID().toString(),
+                                contextId = contextId,
                                 name = name,
                                 color = colors[spinner.selectedItemPosition],
                                 icon = existing?.icon ?: ContainerState.Icon.CIRCLE,
@@ -170,6 +190,7 @@ class ProfilesSettingsFragment : PreferenceFragmentCompat(), SystemInsetsPaddedF
         }
         components.core.engine.clearDataForContext(container.contextId)
         store.dispatch(ContainerAction.RemoveContainerAction(container.contextId))
+        ProfileStorage(requireContext()).deleteProfileFiles(container.contextId)
     }
 
     private companion object {

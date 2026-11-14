@@ -728,6 +728,7 @@ abstract class BaseBrowserFragment :
                 },
             )
 
+        val profileStorage = org.mozilla.fenix.profiles.ProfileStorage(context.applicationContext)
         val downloadFeature =
             DownloadsFeature(
                 context.applicationContext,
@@ -736,6 +737,8 @@ abstract class BaseBrowserFragment :
                 fragmentManager = childFragmentManager,
                 tabId = customTabSessionId,
                 downloadFileUtils = downloadFileUtils,
+                // Profiles: private profiles download into the app's private storage.
+                directoryForContext = profileStorage::downloadDirFor,
                 downloadManager =
                     FetchDownloadManager(
                         context.applicationContext,
