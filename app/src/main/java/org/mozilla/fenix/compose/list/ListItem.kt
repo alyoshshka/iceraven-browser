@@ -20,10 +20,12 @@ import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
@@ -419,6 +421,7 @@ fun RadioButtonListItem(
     maxDescriptionLines: Int = 1,
     enabled: Boolean = true,
     showButtonAfter: Boolean = false,
+    descriptionLeading: (@Composable () -> Unit)? = null, // Profiles
     onClick: (() -> Unit),
 ) {
     val radioButton: @Composable RowScope.() -> Unit = {
@@ -446,6 +449,7 @@ fun RadioButtonListItem(
         description = description,
         maxDescriptionLines = maxDescriptionLines,
         enabled = enabled,
+        descriptionLeading = descriptionLeading, // Profiles
         onClick = onClick,
         beforeListItemAction = if (showButtonAfter) EmptyListItemSlot else radioButton,
         afterListItemAction = if (showButtonAfter) radioButton else EmptyListItemSlot,
@@ -736,6 +740,7 @@ fun SelectableListItem(
     afterListItemAction: @Composable RowScope.() -> Unit,
     belowListItemContent: @Composable ColumnScope.() -> Unit = {},
     showSelectableItemAfter: Boolean = false,
+    descriptionLeading: (@Composable () -> Unit)? = null, // Profiles
 ) {
     val selectableItem: @Composable RowScope.() -> Unit = {
         SelectableItemIcon(
@@ -753,6 +758,7 @@ fun SelectableListItem(
         label = label,
         description = description,
         modifier = modifier,
+        descriptionLeading = descriptionLeading, // Profiles
         colors = ListItemDefaults.colors(supportingColor = descriptionTextColor),
         belowListItemContent = belowListItemContent,
         labelOverflow = labelOverflow,
@@ -824,6 +830,7 @@ private fun ListItem(
     description: String? = null,
     maxDescriptionLines: Int = 1,
     enabled: Boolean = true,
+    descriptionLeading: (@Composable () -> Unit)? = null, // Profiles
     minHeight: Dp = LIST_ITEM_HEIGHT,
     onClick: (() -> Unit)? = null,
     onLongClick: (() -> Unit)? = null,
@@ -879,6 +886,7 @@ private fun ListItem(
                 description = description,
                 maxDescriptionLines = maxDescriptionLines,
                 enabled = enabled,
+                descriptionLeading = descriptionLeading, // Profiles
                 belowListItemContent = belowListItemContent,
             )
 
@@ -898,6 +906,7 @@ private fun ListItemContent(
     description: String? = null,
     maxDescriptionLines: Int = 1,
     enabled: Boolean = true,
+    descriptionLeading: (@Composable () -> Unit)? = null, // Profiles
     belowListItemContent: @Composable ColumnScope.() -> Unit = {},
 ) {
     Column(modifier = modifier) {
@@ -911,13 +920,25 @@ private fun ListItemContent(
         )
 
         description?.let {
-            Text(
-                text = description,
-                color = if (enabled) colors.supportingTextColor else colors.disabledHeadlineColor,
-                overflow = TextOverflow.Ellipsis,
-                maxLines = maxDescriptionLines,
-                style = FirefoxTheme.typography.body2,
-            )
+            // Profiles: optional composable (the profile dot) before the description text.
+            val descriptionText: @Composable () -> Unit = {
+                Text(
+                    text = description,
+                    color = if (enabled) colors.supportingTextColor else colors.disabledHeadlineColor,
+                    overflow = TextOverflow.Ellipsis,
+                    maxLines = maxDescriptionLines,
+                    style = FirefoxTheme.typography.body2,
+                )
+            }
+            if (descriptionLeading == null) {
+                descriptionText()
+            } else {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    descriptionLeading()
+                    Spacer(modifier = Modifier.width(FirefoxTheme.layout.space.static100))
+                    descriptionText()
+                }
+            }
         }
 
         belowListItemContent()

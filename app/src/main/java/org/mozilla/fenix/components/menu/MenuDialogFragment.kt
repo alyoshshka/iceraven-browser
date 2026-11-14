@@ -110,9 +110,8 @@ import org.mozilla.fenix.ext.requireComponents
 import org.mozilla.fenix.ext.runIfFragmentIsAttached
 import org.mozilla.fenix.ipprotection.ui.IPProtectionSnackbarBinding
 import org.mozilla.fenix.nimbus.FxNimbus
+import org.mozilla.fenix.profiles.OpenInProfileForTab
 import org.mozilla.fenix.profiles.isOpenInProfileSupported
-import org.mozilla.fenix.profiles.profileName
-import org.mozilla.fenix.profiles.showOpenInProfileDialog
 import org.mozilla.fenix.settings.SupportUtils
 import org.mozilla.fenix.settings.deletebrowsingdata.DefaultDeleteBrowsingDataController
 import org.mozilla.fenix.settings.deletebrowsingdata.DefaultDeleteBrowsingDataController.DataStorage
@@ -288,6 +287,20 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
             }
 
             var isExtensionsExpanded by remember { mutableStateOf(false) }
+
+            // Profiles: tab for which the "Open in profile" dialog is shown, null when hidden.
+            var openInProfileTabId by remember { mutableStateOf<String?>(null) }
+            openInProfileTabId?.let { tabId ->
+                OpenInProfileForTab(
+                    components = components,
+                    tabId = tabId,
+                    navController = findNavController(),
+                    onDismiss = {
+                        openInProfileTabId = null
+                        dismiss()
+                    },
+                )
+            }
 
             val isMoreMenuExpanded by remember {
                 menuStore.stateFlow.map { state -> state.isMoreMenuExpanded }
@@ -690,25 +703,11 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
                                             menuStore.dispatch(MenuAction.Navigate.AddToHomeScreen)
                                         },
                                         // Profiles
-                                        profileLabel =
-                                            browserTab?.takeIf { customTab == null && isOpenInProfileSupported(it) }?.let {
-                                                stringResource(
-                                                    R.string.profiles_open_in_profile,
-                                                    browserStore.state.profileName(context, it.contextId),
-                                                )
-                                            },
+                                        showOpenInProfile =
+                                            browserTab != null && customTab == null &&
+                                                isOpenInProfileSupported(browserTab),
                                         onOpenInProfileClick = {
-                                            val tabId = browserTab?.id
-                                            val navController = findNavController()
-                                            dismiss()
-                                            if (tabId != null) {
-                                                showOpenInProfileDialog(
-                                                    context = requireActivity(),
-                                                    components = requireComponents,
-                                                    tabId = tabId,
-                                                    navController = navController,
-                                                )
-                                            }
+                                            openInProfileTabId = browserTab?.id
                                         },
                                         onSaveToCollectionMenuClick = {
                                             menuStore.dispatch(

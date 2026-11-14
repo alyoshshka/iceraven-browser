@@ -55,8 +55,8 @@ internal fun MoreSettingsSubmenu(
     onOpenInAppMenuClick: () -> Unit,
     onMoveToNonPrivateTabMenuClick: () -> Unit,
     onAddToTabGroupClick: () -> Unit,
-    // Profiles: label of the "Open in profile" item, null hides it.
-    profileLabel: String? = null,
+    // Profiles: whether to show the "Open in profile" item.
+    showOpenInProfile: Boolean = false,
     onOpenInProfileClick: () -> Unit = {},
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -73,11 +73,11 @@ internal fun MoreSettingsSubmenu(
             isPrivate = isPrivate,
             onMoveToNonPrivateTabMenuClick = onMoveToNonPrivateTabMenuClick,
         )
-        if (profileLabel != null) {
+        if (showOpenInProfile) {
             // Profiles
             MenuItem(
-                label = profileLabel,
-                beforeIconPainter = painterResource(id = iconsR.drawable.mozac_ic_external_link_24),
+                label = stringResource(id = R.string.profiles_open_in_profile),
+                beforeIconPainter = painterResource(id = iconsR.drawable.mozac_ic_avatar_circle_24),
                 onClick = onOpenInProfileClick,
             )
         }

@@ -5,14 +5,27 @@
 package org.mozilla.fenix.profiles
 
 import android.content.Context
-import androidx.appcompat.app.AlertDialog
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.navigation.NavController
 import mozilla.components.browser.state.selector.findTab
 import mozilla.components.browser.state.state.BrowserState
+import mozilla.components.browser.state.state.ContainerState
 import mozilla.components.browser.state.state.SessionState
+import mozilla.components.compose.base.button.TextButton
+import mozilla.components.feature.prompts.R as promptsR
 import org.mozilla.fenix.NavGraphDirections
 import org.mozilla.fenix.R
 import org.mozilla.fenix.components.Components
+import org.mozilla.fenix.compose.list.RadioButtonListItem
+import org.mozilla.fenix.theme.FirefoxTheme
 
 // Profiles: helpers for the "Open in profile" main menu item.
 
@@ -29,34 +42,87 @@ fun isOpenInProfileSupported(tab: SessionState?): Boolean =
         (tab.content.url.startsWith("http://") || tab.content.url.startsWith("https://"))
 
 /**
- * Shows a dialog to pick a profile and opens the URL of [tabId] in a new selected tab of that profile.
- * The original tab is kept.
+ * Dialog to pick the profile to open the URL of a tab in: Default and each profile as radio rows (the tab's current
+ * profile selected), a "Manage profiles" text button and Cancel.
+ *
+ * @param containers The profiles to list, sorted by name.
+ * @param currentContextId Profile of the tab, null for Default.
+ * @param onProfileSelected Invoked with the context id of the chosen profile, null for Default.
+ * @param onManageProfiles Invoked when "Manage profiles" is tapped.
+ * @param onDismiss Invoked when the dialog is cancelled.
  */
-fun showOpenInProfileDialog(
-    context: Context,
+@Composable
+fun OpenInProfileDialog(
+    containers: List<ContainerState>,
+    currentContextId: String?,
+    onProfileSelected: (contextId: String?) -> Unit,
+    onManageProfiles: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = stringResource(R.string.profiles_open_in_profile),
+                style = FirefoxTheme.typography.headline5,
+            )
+        },
+        text = {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                RadioButtonListItem(
+                    label = stringResource(R.string.profiles_default_name),
+                    selected = currentContextId == null,
+                    onClick = { onProfileSelected(null) },
+                )
+                containers.forEach { container ->
+                    RadioButtonListItem(
+                        label = container.name,
+                        selected = container.contextId == currentContextId,
+                        onClick = { onProfileSelected(container.contextId) },
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                text = stringResource(R.string.profiles_manage),
+                onClick = onManageProfiles,
+            )
+        },
+        dismissButton = {
+            TextButton(
+                text = stringResource(promptsR.string.mozac_feature_prompts_cancel),
+                onClick = onDismiss,
+            )
+        },
+    )
+}
+
+/** Profiles: shows [OpenInProfileDialog] for the tab [tabId] and opens it in the chosen profile. */
+@Composable
+fun OpenInProfileForTab(
     components: Components,
     tabId: String,
     navController: NavController,
+    onDismiss: () -> Unit,
 ) {
     val store = components.core.store
-    val containers = store.state.containers.values.sortedBy { it.name.lowercase() }
-    val currentContextId = store.state.findTab(tabId)?.contextId
-    fun label(name: String, isCurrent: Boolean) =
-        if (isCurrent) context.getString(R.string.profiles_current_suffix, name) else name
-    val names = listOf(label(context.getString(R.string.profiles_default_name), currentContextId == null)) +
-        containers.map { label(it.name, it.contextId == currentContextId) } +
-        context.getString(R.string.profiles_manage)
+    val containers = remember { store.state.containers.values.sortedBy { it.name.lowercase() } }
+    val currentContextId = remember { store.state.findTab(tabId)?.contextId }
 
-    AlertDialog.Builder(context)
-        .setTitle(R.string.profiles_open_in_profile_title)
-        .setItems(names.toTypedArray()) { _, which ->
-            when (which) {
-                0 -> openInProfile(components, tabId, null)
-                names.lastIndex -> navController.navigate(NavGraphDirections.actionGlobalProfilesSettingsFragment())
-                else -> openInProfile(components, tabId, containers[which - 1].contextId)
-            }
-        }
-        .show()
+    OpenInProfileDialog(
+        containers = containers,
+        currentContextId = currentContextId,
+        onProfileSelected = { contextId ->
+            onDismiss()
+            openInProfile(components, tabId, contextId)
+        },
+        onManageProfiles = {
+            onDismiss()
+            navController.navigate(NavGraphDirections.actionGlobalProfilesSettingsFragment())
+        },
+        onDismiss = onDismiss,
+    )
 }
 
 private fun openInProfile(components: Components, tabId: String, contextId: String?) {

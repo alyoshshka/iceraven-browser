@@ -4,26 +4,46 @@
    - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
 <!-- Profiles: fork-only strings, English only (not translated). -->
 <resources>
+    <!-- Settings screen -->
     <string name="profiles_title" translatable="false">Profiles</string>
     <string name="profiles_summary" translatable="false">Separate cookies and logins per site</string>
     <string name="profiles_default_name" translatable="false">Default</string>
     <string name="profiles_add" translatable="false">Add profile</string>
-    <string name="profiles_name_hint" translatable="false">Profile name</string>
-    <string name="profiles_color_title" translatable="false">Color</string>
-    <string name="profiles_create" translatable="false">Create</string>
-    <string name="profiles_save" translatable="false">Save</string>
-    <string name="profiles_rename" translatable="false">Rename / change color</string>
-    <string name="profiles_rename_title" translatable="false">Edit profile</string>
-    <string name="profiles_current_suffix" translatable="false">%1$s (current)</string>
-    <string name="profiles_cancel" translatable="false">Cancel</string>
-    <string name="profiles_delete" translatable="false">Delete</string>
-    <string name="profiles_delete_confirm_title" translatable="false">Delete profile \"%1$s\"?</string>
-    <string name="profiles_delete_confirm_message" translatable="false">All tabs of this profile will be closed and its cookies, logins and site data will be erased. Its downloaded files will be deleted too.</string>
-    <string name="profiles_empty" translatable="false">No profiles yet</string>
-    <string name="profiles_open_in_profile" translatable="false">Open in profile (current: %1$s)</string>
-    <string name="profiles_open_in_profile_title" translatable="false">Open in profile</string>
-    <string name="profiles_manage" translatable="false">Manage profiles…</string>
+    <string name="profiles_edit" translatable="false">Edit profile</string>
+    <string name="profiles_empty_title" translatable="false">No profiles yet</string>
+    <string name="profiles_empty_message" translatable="false">Add a profile to keep cookies and logins separate.</string>
+    <!-- Add and edit dialog -->
+    <string name="profiles_name_label" translatable="false">Profile name</string>
+    <string name="profiles_name_error" translatable="false">Enter a name</string>
+    <string name="profiles_color_label" translatable="false">Color</string>
+    <string name="profiles_color_blue" translatable="false">Blue</string>
+    <string name="profiles_color_turquoise" translatable="false">Turquoise</string>
+    <string name="profiles_color_green" translatable="false">Green</string>
+    <string name="profiles_color_yellow" translatable="false">Yellow</string>
+    <string name="profiles_color_orange" translatable="false">Orange</string>
+    <string name="profiles_color_red" translatable="false">Red</string>
+    <string name="profiles_color_pink" translatable="false">Pink</string>
+    <string name="profiles_color_purple" translatable="false">Purple</string>
+    <string name="profiles_color_gray" translatable="false">Gray</string>
+    <!-- Delete dialog -->
+    <string name="profiles_delete_confirm_title" translatable="false">Delete profile “%1$s”?</string>
+    <string name="profiles_delete_confirm_message" translatable="false">Its tabs, logins and files will be removed.</string>
+    <!-- Main menu and open in profile dialog -->
+    <string name="profiles_open_in_profile" translatable="false">Open in profile</string>
+    <string name="profiles_manage" translatable="false">Manage profiles</string>
     <string name="profiles_shortcut_label" translatable="false">%1$s (%2$s)</string>
+    <!-- File picker -->
+    <string name="profiles_upload_title" translatable="false">Upload from</string>
+    <string name="profiles_upload_raven_files" translatable="false">Raven files</string>
+    <string name="profiles_upload_device_files" translatable="false">Device files</string>
+    <string name="profiles_upload_camera" translatable="false">Camera</string>
+    <string name="profiles_upload_empty" translatable="false">No matching files in Raven yet</string>
+    <string name="profiles_upload_back" translatable="false">Back</string>
+    <string name="profiles_upload_confirm" translatable="false">Upload</string>
+    <string name="profiles_upload_share_error" translatable="false">Couldn’t share the file</string>
+    <string name="profiles_file_description" translatable="false">%1$s · %2$s</string>
+    <!-- Downloads strings: owned by the Downloads screen. -->
+    <string name="profiles_cancel" translatable="false">Cancel</string>
     <string name="profiles_files_device" translatable="false">Device</string>
     <string name="profiles_files_device_downloads" translatable="false">Device Downloads</string>
     <string name="profiles_files_default" translatable="false">Default</string>

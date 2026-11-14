@@ -33,6 +33,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
@@ -60,6 +61,7 @@ import org.mozilla.fenix.R
 import org.mozilla.fenix.compose.Favicon
 import org.mozilla.fenix.compose.TabThumbnail
 import org.mozilla.fenix.compose.swipeToDismissFade
+import org.mozilla.fenix.profiles.ProfileDot
 import org.mozilla.fenix.tabstray.TabsTrayTestTag
 import org.mozilla.fenix.tabstray.data.TabsTrayItem
 import org.mozilla.fenix.tabstray.data.createTab
@@ -234,7 +236,7 @@ private fun Header(
     onCloseClick: (TabsTrayItem.Tab) -> Unit,
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth().wrapContentHeight().profileTopBar(tab.profileColor), // Profiles
+        modifier = Modifier.fillMaxWidth().wrapContentHeight(),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Spacer(modifier = Modifier.width(FirefoxTheme.layout.space.static100))
@@ -242,6 +244,12 @@ private fun Header(
         TabIcon(tab = tab)
 
         Spacer(modifier = Modifier.width(FirefoxTheme.layout.space.static50))
+
+        // Profiles: dot between the favicon and the title.
+        tab.profileColor?.let {
+            ProfileDot(color = Color(it))
+            Spacer(modifier = Modifier.width(FirefoxTheme.layout.space.static50))
+        }
 
         Text(
             text = tab.title.take(MAX_URI_LENGTH),

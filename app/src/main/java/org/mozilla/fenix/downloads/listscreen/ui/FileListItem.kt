@@ -26,6 +26,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -54,7 +55,7 @@ import org.mozilla.fenix.compose.swipeToDismissFade
 import org.mozilla.fenix.downloads.listscreen.DownloadsListTestTag
 import org.mozilla.fenix.downloads.listscreen.store.FileItem
 import org.mozilla.fenix.downloads.listscreen.store.TimeCategory
-import org.mozilla.fenix.tabstray.ui.tabitems.profileStripe
+import org.mozilla.fenix.profiles.ProfileDot
 import org.mozilla.fenix.theme.FirefoxTheme
 
 /**
@@ -164,9 +165,10 @@ private fun FileListItemMainContent(
         description = "${fileItem.profileName ?: stringResource(R.string.profiles_files_device)} · ${fileItem.description}",
         icon = if (isFailed) iconsR.drawable.mozac_ic_critical_24 else fileItem.icon,
         isSelected = isSelected,
+        // Profiles: dot before the profile name.
+        descriptionLeading = fileItem.profileColor?.let { { ProfileDot(color = Color(it)) } },
         modifier =
-            Modifier.profileStripe(fileItem.profileColor)
-                .swipeToDismissFade(swipeToDismissBoxState)
+            Modifier.swipeToDismissFade(swipeToDismissBoxState)
                 .selectableListItemProgressSemantics(status = fileItem.status)
                 .thenConditional(
                     Modifier.combinedClickable(

@@ -44,9 +44,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.res.dimensionResource
@@ -89,6 +86,7 @@ import org.mozilla.fenix.components.components
 import org.mozilla.fenix.compose.Favicon
 import org.mozilla.fenix.compose.HorizontalFadingEdgeBox
 import org.mozilla.fenix.compose.ext.isItemPartiallyVisible
+import org.mozilla.fenix.profiles.ProfileDot
 import org.mozilla.fenix.tabstray.browser.compose.ReorderableDragItemContainer
 import org.mozilla.fenix.tabstray.browser.compose.createListReorderState
 import org.mozilla.fenix.tabstray.browser.compose.detectListPressAndDrag
@@ -431,7 +429,6 @@ private fun TabItem(
         Row(
             modifier =
                 Modifier.fillMaxSize()
-                    .profileBottomBar(state.profileColor) // Profiles
                     .clickable { onSelectedTabClick(state.id, state.url) }
                     .semantics {
                         role = Role.Tab
@@ -465,6 +462,12 @@ private fun TabItem(
                 )
 
                 Spacer(modifier = Modifier.size(8.dp))
+
+                // Profiles: dot before the title.
+                state.profileColor?.let {
+                    ProfileDot(color = Color(it))
+                    Spacer(modifier = Modifier.size(6.dp))
+                }
 
                 HorizontalFadingEdgeBox(
                     modifier = Modifier.weight(1f).fillMaxHeight(),
@@ -670,21 +673,3 @@ private fun TabStripPreview(@PreviewParameter(PreviewThemeProvider::class) theme
         }
     }
 }
-
-// Profiles: height of the colored bar marking tabs of a profile.
-private val profileBarHeight = 3.dp
-
-/** Profiles: draws a colored bar along the bottom edge when [profileColor] (ARGB) is set. */
-private fun Modifier.profileBottomBar(profileColor: Int?): Modifier =
-    if (profileColor == null) {
-        this
-    } else {
-        drawBehind {
-            val height = profileBarHeight.toPx()
-            drawRect(
-                color = Color(profileColor),
-                topLeft = Offset(0f, size.height - height),
-                size = Size(size.width, height),
-            )
-        }
-    }

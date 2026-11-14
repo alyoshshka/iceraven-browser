@@ -1,0 +1,261 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+package org.mozilla.fenix.profiles
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.tooling.preview.PreviewLightDark
+import androidx.compose.ui.unit.dp
+import mozilla.components.browser.state.state.ContainerState
+import mozilla.components.compose.base.button.TextButton
+import mozilla.components.compose.base.textfield.TextField
+import mozilla.components.feature.prompts.R as promptsR
+import mozilla.components.ui.icons.R as iconsR
+import org.mozilla.fenix.R
+import org.mozilla.fenix.theme.FirefoxTheme
+
+private val ColorCircleSize = 40.dp
+private const val COLORS_PER_ROW = 4
+
+/**
+ * Profiles: dialog to add a profile ([existing] null) or to rename and recolor [existing].
+ *
+ * @param existing The profile being edited, or null when adding.
+ * @param defaultColor Color preselected when adding (the first color no other profile uses).
+ * @param onDismiss Invoked when the dialog is cancelled.
+ * @param onSave Invoked with the trimmed, non-empty name and the chosen color.
+ */
+@Composable
+fun ProfileEditDialog(
+    existing: ContainerState?,
+    defaultColor: ContainerState.Color,
+    onDismiss: () -> Unit,
+    onSave: (name: String, color: ContainerState.Color) -> Unit,
+) {
+    var name by remember { mutableStateOf(existing?.name ?: "") }
+    var color by remember { mutableStateOf(existing?.color ?: defaultColor) }
+    var nameError by remember { mutableStateOf(false) }
+    val focusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(Unit) {
+        focusRequester.requestFocus()
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = stringResource(if (existing == null) R.string.profiles_add else R.string.profiles_edit),
+                style = FirefoxTheme.typography.headline5,
+            )
+        },
+        text = {
+            // Scrollable so that the buttons stay reachable with the on-screen keyboard.
+            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                TextField(
+                    value = name,
+                    onValueChange = {
+                        name = it
+                        nameError = false
+                    },
+                    placeholder = "",
+                    errorText = stringResource(R.string.profiles_name_error),
+                    label = stringResource(R.string.profiles_name_label),
+                    isError = nameError,
+                    keyboardOptions = KeyboardOptions(
+                        capitalization = KeyboardCapitalization.Sentences,
+                    ),
+                    modifier = Modifier.focusRequester(focusRequester),
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Text(
+                    text = stringResource(R.string.profiles_color_label),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = FirefoxTheme.typography.caption,
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                ProfileColorPicker(selected = color, onSelected = { color = it })
+            }
+        },
+        confirmButton = {
+            TextButton(
+                text = stringResource(promptsR.string.mozac_feature_prompt_save_confirmation),
+                onClick = {
+                    val trimmed = name.trim()
+                    if (trimmed.isEmpty()) nameError = true else onSave(trimmed, color)
+                },
+            )
+        },
+        dismissButton = {
+            TextButton(
+                text = stringResource(promptsR.string.mozac_feature_prompts_cancel),
+                onClick = onDismiss,
+            )
+        },
+    )
+}
+
+@Composable
+private fun ProfileColorPicker(
+    selected: ContainerState.Color,
+    onSelected: (ContainerState.Color) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        ProfileColorPalette.chunked(COLORS_PER_ROW).forEach { rowColors ->
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                rowColors.forEach { option ->
+                    ProfileColorCircle(
+                        color = option.toComposeColor(),
+                        name = stringResource(option.nameRes()),
+                        isSelected = option == selected,
+                        onClick = { onSelected(option) },
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProfileColorCircle(
+    color: Color,
+    name: String,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .size(ColorCircleSize)
+            .clip(CircleShape)
+            .background(color)
+            .then(
+                if (isSelected) {
+                    Modifier.border(2.dp, MaterialTheme.colorScheme.onSurface, CircleShape)
+                } else {
+                    Modifier
+                },
+            )
+            .clickable(role = Role.RadioButton, onClick = onClick)
+            .semantics {
+                contentDescription = name
+                this.selected = isSelected
+                role = Role.RadioButton
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        if (isSelected) {
+            Icon(
+                painter = painterResource(iconsR.drawable.mozac_ic_checkmark_24),
+                contentDescription = null,
+                // Profile palette colors are all light enough for a dark check.
+                tint = Color.Black,
+            )
+        }
+    }
+}
+
+/**
+ * Profiles: confirmation before deleting [profileName] with its tabs, logins and files.
+ */
+@Composable
+fun DeleteProfileDialog(
+    profileName: String,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = stringResource(R.string.profiles_delete_confirm_title, profileName),
+                style = FirefoxTheme.typography.headline5,
+            )
+        },
+        text = {
+            Text(
+                text = stringResource(R.string.profiles_delete_confirm_message),
+                style = FirefoxTheme.typography.body2,
+            )
+        },
+        confirmButton = {
+            TextButton(
+                text = stringResource(R.string.bookmark_menu_delete_button),
+                onClick = onConfirm,
+            )
+        },
+        dismissButton = {
+            TextButton(
+                text = stringResource(promptsR.string.mozac_feature_prompts_cancel),
+                onClick = onDismiss,
+            )
+        },
+    )
+}
+
+@Composable
+@PreviewLightDark
+private fun ProfileEditDialogPreview() {
+    FirefoxTheme {
+        Surface {
+            ProfileEditDialog(
+                existing = null,
+                defaultColor = ContainerState.Color.BLUE,
+                onDismiss = {},
+                onSave = { _, _ -> },
+            )
+        }
+    }
+}
+
+@Composable
+@PreviewLightDark
+private fun DeleteProfileDialogPreview() {
+    FirefoxTheme {
+        Surface {
+            DeleteProfileDialog(profileName = "Work", onConfirm = {}, onDismiss = {})
+        }
+    }
+}

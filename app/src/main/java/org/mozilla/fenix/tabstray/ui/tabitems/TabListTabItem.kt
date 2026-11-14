@@ -8,10 +8,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
@@ -23,6 +25,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -44,6 +47,7 @@ import org.mozilla.fenix.compose.TabThumbnail
 import org.mozilla.fenix.compose.rememberSwipeToDismissBoxState
 import org.mozilla.fenix.compose.swipeToDismissFade
 import org.mozilla.fenix.ext.toShortUrl
+import org.mozilla.fenix.profiles.ProfileDot
 import org.mozilla.fenix.tabstray.TabsTrayTestTag
 import org.mozilla.fenix.tabstray.data.TabsTrayItem
 import org.mozilla.fenix.tabstray.data.createTab
@@ -135,7 +139,6 @@ private fun TabContent(
                 .fillMaxWidth()
                 .tabItemListInteractionAnimation(interactionState = interactionState)
                 .background(contentBackgroundColor)
-                .profileStripe(tab.profileColor) // Profiles
                 .tabItemClickable(
                     clickHandler =
                         TabsTrayItemClickHandler(
@@ -163,13 +166,22 @@ private fun TabContent(
                 maxLines = 2,
             )
 
-            Text(
-                text = tab.url.toShortUrl(),
-                color = MaterialTheme.colorScheme.secondary,
-                style = FirefoxTheme.typography.body2,
-                overflow = TextOverflow.Ellipsis,
-                maxLines = 1,
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                // Profiles: dot at the start of the URL line.
+                tab.profileColor?.let {
+                    ProfileDot(color = Color(it))
+                    Spacer(modifier = Modifier.width(FirefoxTheme.layout.space.static100))
+                }
+
+                Text(
+                    text = tab.url.toShortUrl(),
+                    modifier = Modifier.weight(1f, fill = false),
+                    color = MaterialTheme.colorScheme.secondary,
+                    style = FirefoxTheme.typography.body2,
+                    overflow = TextOverflow.Ellipsis,
+                    maxLines = 1,
+                )
+            }
         }
 
         TabListIcon(
