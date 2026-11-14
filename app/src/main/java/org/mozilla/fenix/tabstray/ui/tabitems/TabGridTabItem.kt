@@ -190,8 +190,7 @@ private fun TabContent(
                         }
                     },
             shape = tabContentCardShape,
-            // Profiles: profile tabs get a colored border unless focused.
-            border = tabItemConditionalBorder(selectionState) ?: tabItemProfileBorder(tab.profileColor),
+            border = tabItemConditionalBorder(selectionState),
             colors = CardDefaults.cardColors(containerColor = tabGridItemContainerColor(selectionState)),
         ) {
             Column(modifier = Modifier.aspectRatio(gridItemAspectRatio)) {
@@ -235,7 +234,7 @@ private fun Header(
     onCloseClick: (TabsTrayItem.Tab) -> Unit,
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth().wrapContentHeight(),
+        modifier = Modifier.fillMaxWidth().wrapContentHeight().profileTopBar(tab.profileColor), // Profiles
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Spacer(modifier = Modifier.width(FirefoxTheme.layout.space.static100))

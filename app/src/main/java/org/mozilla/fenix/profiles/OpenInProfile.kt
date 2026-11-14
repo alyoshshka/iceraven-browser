@@ -40,8 +40,11 @@ fun showOpenInProfileDialog(
 ) {
     val store = components.core.store
     val containers = store.state.containers.values.sortedBy { it.name.lowercase() }
-    val names = listOf(context.getString(R.string.profiles_default_name)) +
-        containers.map { it.name } +
+    val currentContextId = store.state.findTab(tabId)?.contextId
+    fun label(name: String, isCurrent: Boolean) =
+        if (isCurrent) context.getString(R.string.profiles_current_suffix, name) else name
+    val names = listOf(label(context.getString(R.string.profiles_default_name), currentContextId == null)) +
+        containers.map { label(it.name, it.contextId == currentContextId) } +
         context.getString(R.string.profiles_manage)
 
     AlertDialog.Builder(context)

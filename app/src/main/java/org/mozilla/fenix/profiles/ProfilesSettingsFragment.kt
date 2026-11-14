@@ -9,7 +9,9 @@ import android.os.Bundle
 import android.view.View
 import android.widget.ArrayAdapter
 import android.widget.EditText
+import android.view.WindowManager
 import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.Spinner
 import androidx.appcompat.app.AlertDialog
 import androidx.preference.Preference
@@ -51,7 +53,7 @@ class ProfilesSettingsFragment : PreferenceFragmentCompat(), SystemInsetsPaddedF
                 isIconSpaceReserved = false
                 title = getString(R.string.profiles_add)
                 setOnPreferenceClickListener {
-                    showAddDialog()
+                    showProfileDialog(null)
                     true
                 }
             },
@@ -78,7 +80,7 @@ class ProfilesSettingsFragment : PreferenceFragmentCompat(), SystemInsetsPaddedF
                         setSize(ICON_SIZE_PX, ICON_SIZE_PX)
                     }
                     setOnPreferenceClickListener {
-                        showDeleteDialog(container)
+                        showProfileMenuDialog(container)
                         true
                     }
                 },
@@ -86,10 +88,12 @@ class ProfilesSettingsFragment : PreferenceFragmentCompat(), SystemInsetsPaddedF
         }
     }
 
-    private fun showAddDialog() {
+    /** Shows the add dialog ([existing] null) or the rename / change color dialog for [existing]. */
+    private fun showProfileDialog(existing: ContainerState?) {
         val input = EditText(requireContext()).apply {
             hint = getString(R.string.profiles_name_hint)
             setSingleLine()
+            existing?.let { setText(it.name) }
         }
         val colors = ContainerState.Color.values().filter { it != ContainerState.Color.TOOLBAR }
         val spinner = Spinner(requireContext()).apply {
@@ -98,6 +102,7 @@ class ProfilesSettingsFragment : PreferenceFragmentCompat(), SystemInsetsPaddedF
                 android.R.layout.simple_spinner_dropdown_item,
                 colors.map { it.displayName() },
             )
+            existing?.let { setSelection(colors.indexOf(it.color).coerceAtLeast(0)) }
         }
         val padding = (DIALOG_PADDING_DP * resources.displayMetrics.density).toInt()
         val layout = LinearLayout(requireContext()).apply {
@@ -108,18 +113,20 @@ class ProfilesSettingsFragment : PreferenceFragmentCompat(), SystemInsetsPaddedF
         }
 
         val dialog = AlertDialog.Builder(requireContext())
-            .setTitle(R.string.profiles_add)
-            .setView(layout)
-            .setPositiveButton(R.string.profiles_create) { _, _ ->
+            .setTitle(if (existing == null) R.string.profiles_add else R.string.profiles_rename_title)
+            // Scrollable so that the buttons stay reachable with the on-screen keyboard.
+            .setView(ScrollView(requireContext()).apply { addView(layout) })
+            .setPositiveButton(if (existing == null) R.string.profiles_create else R.string.profiles_save) { _, _ ->
                 val name = input.text.toString().trim()
                 if (name.isNotEmpty()) {
+                    // Adding a container with an existing contextId replaces it (see ContainerReducer).
                     requireComponents.core.store.dispatch(
                         ContainerAction.AddContainerAction(
                             ContainerState(
-                                contextId = UUID.randomUUID().toString(),
+                                contextId = existing?.contextId ?: UUID.randomUUID().toString(),
                                 name = name,
                                 color = colors[spinner.selectedItemPosition],
-                                icon = ContainerState.Icon.CIRCLE,
+                                icon = existing?.icon ?: ContainerState.Icon.CIRCLE,
                             ),
                         ),
                     )
@@ -127,14 +134,19 @@ class ProfilesSettingsFragment : PreferenceFragmentCompat(), SystemInsetsPaddedF
             }
             .setNegativeButton(R.string.profiles_cancel, null)
             .create()
+        @Suppress("DEPRECATION") // Resize (not pan) so the buttons stay above the keyboard.
+        val resize = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
+        dialog.window?.setSoftInputMode(resize)
         dialog.show()
     }
 
-    private fun showDeleteDialog(container: ContainerState) {
+    private fun showProfileMenuDialog(container: ContainerState) {
         AlertDialog.Builder(requireContext())
             .setTitle(container.name)
-            .setItems(arrayOf(getString(R.string.profiles_delete))) { _, _ ->
-                confirmDelete(container)
+            .setItems(
+                arrayOf(getString(R.string.profiles_rename), getString(R.string.profiles_delete)),
+            ) { _, which ->
+                if (which == 0) showProfileDialog(container) else confirmDelete(container)
             }
             .setNegativeButton(R.string.profiles_cancel, null)
             .show()

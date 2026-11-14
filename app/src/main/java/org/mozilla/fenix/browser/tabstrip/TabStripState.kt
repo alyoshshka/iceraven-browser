@@ -8,7 +8,9 @@ import android.graphics.Bitmap
 import mozilla.components.browser.state.selector.getNormalOrPrivateTabs
 import mozilla.components.browser.state.selector.selectedTab
 import mozilla.components.browser.state.state.BrowserState
+import mozilla.components.browser.state.state.ContainerState
 import mozilla.components.browser.state.state.TabSessionState
+import org.mozilla.fenix.profiles.toArgb
 
 private const val MAX_TABS_WITH_CLOSE_BUTTON_VISIBLE = 7
 
@@ -48,6 +50,7 @@ data class TabStripState(
  * @property isPrivate Whether or not the tab is private.
  * @property isSelected Whether or not the tab is selected.
  * @property isCloseButtonVisible Whether or not the close button is visible.
+ * @property profileColor Profiles: ARGB color of the tab's profile, null for the Default profile.
  */
 data class TabStripItem(
     val id: String,
@@ -57,6 +60,7 @@ data class TabStripItem(
     val isPrivate: Boolean,
     val isSelected: Boolean,
     val isCloseButtonVisible: Boolean = true,
+    val profileColor: Int? = null,
 )
 
 /**
@@ -91,6 +95,7 @@ internal fun BrowserState.toTabStripState(
                     isSelectDisabled = isSelectDisabled,
                     selectedTabId = selectedTabId,
                     showCloseButtonOnUnselectedTabs = tabs.size <= MAX_TABS_WITH_CLOSE_BUTTON_VISIBLE,
+                    containers = containers, // Profiles
                 )
             },
         isPrivateMode = isPrivateMode,
@@ -126,6 +131,7 @@ private fun TabSessionState.toTabStripItem(
     isSelectDisabled: Boolean,
     selectedTabId: String?,
     showCloseButtonOnUnselectedTabs: Boolean,
+    containers: Map<String, ContainerState>,
 ): TabStripItem {
     val isSelected = !isSelectDisabled && id == selectedTabId
     return TabStripItem(
@@ -136,5 +142,6 @@ private fun TabSessionState.toTabStripItem(
         isPrivate = content.private,
         isSelected = isSelected,
         isCloseButtonVisible = showCloseButtonOnUnselectedTabs || isSelected,
+        profileColor = contextId?.let { containers[it]?.color?.toArgb() }, // Profiles
     )
 }

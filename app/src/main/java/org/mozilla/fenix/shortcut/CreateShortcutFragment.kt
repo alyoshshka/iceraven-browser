@@ -8,6 +8,7 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.core.net.toUri
 import androidx.core.widget.addTextChangedListener
 import androidx.fragment.app.DialogFragment
 import androidx.lifecycle.lifecycleScope
@@ -66,11 +67,15 @@ class CreateShortcutFragment : DialogFragment() {
 
             // Profiles: suggested label "<title> (<profile name>)" for profile tabs.
             val profileName = tab.contextId?.let { requireComponents.core.store.state.containers[it]?.name }
+            // A blank title falls back to the host without "www.".
+            val title = tab.content.title.ifBlank {
+                tab.content.url.toUri().host.orEmpty().removePrefix("www.")
+            }
             binding.shortcutText.setText(
                 if (profileName != null) {
-                    getString(R.string.profiles_shortcut_label, tab.content.title, profileName)
+                    getString(R.string.profiles_shortcut_label, title, profileName)
                 } else {
-                    tab.content.title
+                    title
                 },
             )
         }

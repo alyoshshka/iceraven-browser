@@ -417,7 +417,7 @@ fun tabItemConditionalBorder(selectionState: TabsTrayItemSelectionState): Border
     }
 }
 
-// Profiles: width of the colored stripe / border that marks tabs of a profile.
+// Profiles: width of the colored stripe / bar that marks tabs of a profile.
 private val PROFILE_MARKER_WIDTH = 4.dp
 
 /** Profiles: draws a colored stripe on the start edge when [profileColor] (ARGB) is set. */
@@ -430,9 +430,15 @@ fun Modifier.profileStripe(profileColor: Int?): Modifier =
         }
     }
 
-/** Profiles: border around a grid item of a profile tab, or null for the Default profile. */
-fun tabItemProfileBorder(profileColor: Int?): BorderStroke? =
-    profileColor?.let { BorderStroke(width = PROFILE_MARKER_WIDTH, color = Color(it)) }
+/** Profiles: draws a colored bar along the top edge when [profileColor] (ARGB) is set. */
+fun Modifier.profileTopBar(profileColor: Int?): Modifier =
+    if (profileColor == null) {
+        this
+    } else {
+        drawBehind {
+            drawRect(color = Color(profileColor), size = Size(size.width, PROFILE_MARKER_WIDTH.toPx()))
+        }
+    }
 
 /** Renders a border around a [TabsTrayItem] to signify that it is in focus. */
 @Composable

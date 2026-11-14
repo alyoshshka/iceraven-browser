@@ -11,6 +11,10 @@
     <string name="profiles_name_hint" translatable="false">Profile name</string>
     <string name="profiles_color_title" translatable="false">Color</string>
     <string name="profiles_create" translatable="false">Create</string>
+    <string name="profiles_save" translatable="false">Save</string>
+    <string name="profiles_rename" translatable="false">Rename / change color</string>
+    <string name="profiles_rename_title" translatable="false">Edit profile</string>
+    <string name="profiles_current_suffix" translatable="false">%1$s (current)</string>
     <string name="profiles_cancel" translatable="false">Cancel</string>
     <string name="profiles_delete" translatable="false">Delete</string>
     <string name="profiles_delete_confirm_title" translatable="false">Delete profile \"%1$s\"?</string>

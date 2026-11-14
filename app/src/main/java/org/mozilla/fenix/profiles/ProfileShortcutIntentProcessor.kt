@@ -7,6 +7,13 @@ package org.mozilla.fenix.profiles
 import android.content.Intent
 import android.os.Bundle
 import androidx.core.net.toUri
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
+import mozilla.components.browser.state.action.TabListAction
+import mozilla.components.browser.state.selector.findTab
 import mozilla.components.browser.state.selector.selectedTab
 import mozilla.components.browser.state.state.SessionState
 import mozilla.components.browser.state.state.TabSessionState
@@ -16,6 +23,7 @@ import mozilla.components.feature.intent.ext.putSessionId
 import mozilla.components.feature.intent.processing.IntentProcessor
 import mozilla.components.feature.session.SessionUseCases
 import mozilla.components.feature.tabs.TabsUseCases
+import mozilla.components.lib.state.ext.flow
 
 /** Profiles: intent extra holding the contextId of the profile a home screen shortcut belongs to. */
 const val EXTRA_PROFILE_CONTEXT_ID = "app.ravenprofiles.extra.CONTEXT_ID"
@@ -38,6 +46,7 @@ class ProfileShortcutIntentProcessor(
     private val addNewTab: TabsUseCases.AddNewTabUseCase,
     private val selectTab: TabsUseCases.SelectTabUseCase,
     private val requestDesktopSite: SessionUseCases.RequestDesktopSiteUseCase,
+    private val scope: CoroutineScope = MainScope(),
 ) : IntentProcessor {
 
     override fun process(intent: Intent): Boolean {
@@ -68,16 +77,34 @@ class ProfileShortcutIntentProcessor(
                     selectTab = true,
                     startLoading = true,
                     contextId = contextId,
-                ).also { if (desktop) requestDesktopSite(true, it) }
+                ).also {
+                    if (desktop) requestDesktopSite(true, it)
+                    if (!store.state.restoreComplete) reuseRestoredTabOnceRestored(it, contextId, host)
+                }
             }
 
         intent.putSessionId(tabId)
         return true
     }
 
-    private fun findExistingTab(contextId: String?, host: String): TabSessionState? {
+    /**
+     * On a cold start this runs before session restore, so the tab opened above may duplicate a restored one. Once the
+     * restore completes, switch to the restored tab of the same profile and host and drop the new tab.
+     */
+    private fun reuseRestoredTabOnceRestored(newTabId: String, contextId: String?, host: String) {
+        scope.launch {
+            store.flow().map { it.restoreComplete }.first { it } // completes after the first emission of true
+            val restored = findExistingTab(contextId, host, excludeTabId = newTabId) ?: return@launch
+            if (store.state.findTab(newTabId) == null) return@launch
+            selectTab(restored.id)
+            store.dispatch(TabListAction.RemoveTabAction(newTabId))
+        }
+    }
+
+    private fun findExistingTab(contextId: String?, host: String, excludeTabId: String? = null): TabSessionState? {
         val candidates = store.state.tabs.filter { tab ->
-            !tab.content.private &&
+            tab.id != excludeTabId &&
+                !tab.content.private &&
                 tab.contextId == contextId &&
                 tab.content.url.toUri().host.equals(host, ignoreCase = true)
         }
