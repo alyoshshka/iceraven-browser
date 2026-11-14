@@ -9,6 +9,7 @@ import kotlin.time.Duration.Companion.seconds
 import mozilla.components.browser.state.state.content.DownloadState
 import mozilla.components.feature.downloads.DownloadEstimator
 import mozilla.components.feature.downloads.FileSizeFormatter
+import org.mozilla.fenix.profiles.ProfileFileOps
 import org.mozilla.fenix.R
 import org.mozilla.fenix.downloads.listscreen.store.FileItem
 import org.mozilla.fenix.ext.components
@@ -42,7 +43,13 @@ class DefaultFileItemDescriptionProvider(
         when (downloadState.status) {
             DownloadState.Status.COMPLETED -> {
                 val formattedContentLength = fileSizeFormatter.formatSizeInBytes(downloadState.contentLength ?: 0)
-                "$formattedContentLength • ${downloadState.url.getBaseDomainUrl(context.components.publicSuffixList)}"
+                // Profiles: imported files have no web origin.
+                val origin = if (downloadState.url == ProfileFileOps.IMPORTED_URL) {
+                    context.getString(R.string.profiles_files_imported)
+                } else {
+                    downloadState.url.getBaseDomainUrl(context.components.publicSuffixList)
+                }
+                "$formattedContentLength • $origin"
             }
             DownloadState.Status.FAILED -> context.getString(R.string.download_item_status_failed)
             DownloadState.Status.CANCELLED -> "" // Cancelled downloads are not shown

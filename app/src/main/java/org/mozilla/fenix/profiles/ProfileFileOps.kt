@@ -13,7 +13,6 @@ import android.provider.MediaStore
 import android.provider.OpenableColumns
 import android.util.Log
 import android.webkit.MimeTypeMap
-import android.widget.Toast
 import java.io.File
 import java.io.IOException
 import kotlinx.coroutines.CoroutineScope
@@ -29,9 +28,12 @@ import org.mozilla.fenix.downloads.listscreen.store.FileItem
 /**
  * Profiles: file operations behind the Downloads file manager. A location is a profile id (files
  * kept in the app-private folder of the profile) or null (shared public Downloads folder).
- * All IO runs on [Dispatchers.IO]; results are reported with a toast.
+ * All IO runs on [Dispatchers.IO]; each operation returns a [ProfileFileResult] for the Downloads snackbar.
  */
 object ProfileFileOps {
+    /** Url of imported files, which have no web origin. */
+    const val IMPORTED_URL = "about:blank"
+
     private const val TAG = "ProfileFileOps"
 
     /** Outlives the Downloads screen so a started move or import always finishes. */
@@ -41,7 +43,7 @@ object ProfileFileOps {
         get() = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS).path
 
     /** Moves [items] to [target] (profile id, or null for Shared) and updates the download database. */
-    suspend fun move(context: Context, store: BrowserStore, items: Collection<FileItem>, target: String?) {
+    suspend fun move(context: Context, store: BrowserStore, items: Collection<FileItem>, target: String?): ProfileFileResult {
         val app = context.applicationContext
         var moved = 0
         withContext(Dispatchers.IO) {
@@ -66,7 +68,7 @@ object ProfileFileOps {
                 }
             }
         }
-        toast(app, "Moved $moved of ${items.size} file(s)")
+        return ProfileFileResult.Moved(moved, items.size)
     }
 
     /** Returns the new (directoryPath, fileName), or null when the file could not be moved. */
@@ -113,7 +115,7 @@ object ProfileFileOps {
     }
 
     /** Copies the file behind [item] to [dest] (a document Uri from CreateDocument). The original stays. */
-    suspend fun export(context: Context, item: FileItem, dest: Uri) {
+    suspend fun export(context: Context, item: FileItem, dest: Uri): ProfileFileResult {
         val app = context.applicationContext
         val ok = withContext(Dispatchers.IO) {
             try {
@@ -131,11 +133,11 @@ object ProfileFileOps {
                 false
             }
         }
-        toast(app, if (ok) "Exported" else "Export failed")
+        return ProfileFileResult.Exported(ok)
     }
 
     /** Copies [uris] into [target] (profile id, or null for Shared) and registers them as completed downloads. */
-    suspend fun import(context: Context, store: BrowserStore, uris: List<Uri>, target: String?) {
+    suspend fun import(context: Context, store: BrowserStore, uris: List<Uri>, target: String?): ProfileFileResult {
         val app = context.applicationContext
         var imported = 0
         withContext(Dispatchers.IO) {
@@ -162,7 +164,7 @@ object ProfileFileOps {
                     store.dispatch(
                         DownloadAction.AddDownloadAction(
                             DownloadState(
-                                url = "about:blank",
+                                url = IMPORTED_URL,
                                 fileName = finalName,
                                 contentType = mime,
                                 contentLength = length,
@@ -182,7 +184,7 @@ object ProfileFileOps {
                 }
             }
         }
-        toast(app, "Imported $imported of ${uris.size} file(s)")
+        return ProfileFileResult.Imported(imported, uris.size)
     }
 
     /** Writes [input] into the public Downloads folder and returns the final file name. */
@@ -242,8 +244,16 @@ object ProfileFileOps {
     private fun mimeOf(name: String): String =
         MimeTypeMap.getSingleton().getMimeTypeFromExtension(name.substringAfterLast('.', "").lowercase())
             ?: "application/octet-stream"
+}
 
-    private suspend fun toast(app: Context, text: String) = withContext(Dispatchers.Main) {
-        Toast.makeText(app, text, Toast.LENGTH_SHORT).show()
-    }
+/** Profiles: outcome of a file operation, shown as a snackbar on the Downloads screen. */
+sealed interface ProfileFileResult {
+    /** [moved] of [total] files were moved. */
+    data class Moved(val moved: Int, val total: Int) : ProfileFileResult
+
+    /** A file was exported ([success]) or not. */
+    data class Exported(val success: Boolean) : ProfileFileResult
+
+    /** [imported] of [total] files were imported. */
+    data class Imported(val imported: Int, val total: Int) : ProfileFileResult
 }

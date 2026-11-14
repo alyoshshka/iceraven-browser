@@ -43,13 +43,33 @@
     <string name="profiles_upload_share_error" translatable="false">Couldn’t share the file</string>
     <string name="profiles_file_description" translatable="false">%1$s · %2$s</string>
     <!-- Downloads strings: owned by the Downloads screen. -->
-    <string name="profiles_cancel" translatable="false">Cancel</string>
     <string name="profiles_files_device" translatable="false">Device</string>
-    <string name="profiles_files_device_downloads" translatable="false">Device Downloads</string>
+    <string name="profiles_files_device_downloads" translatable="false">Device downloads</string>
     <string name="profiles_files_default" translatable="false">Default</string>
-    <string name="profiles_files_all" translatable="false">All</string>
-    <string name="profiles_files_move_to" translatable="false">Move to…</string>
-    <string name="profiles_files_export" translatable="false">Export…</string>
+    <string name="profiles_files_all_profiles" translatable="false">All profiles</string>
+    <string name="profiles_files_move_to" translatable="false">Move to</string>
+    <string name="profiles_files_export" translatable="false">Export</string>
     <string name="profiles_files_import" translatable="false">Import files</string>
-    <string name="profiles_files_import_to" translatable="false">Import files to…</string>
+    <string name="profiles_files_import_to" translatable="false">Import to</string>
+    <string name="profiles_files_imported" translatable="false">Imported</string>
+    <string name="profiles_files_exported" translatable="false">Exported</string>
+    <string name="profiles_files_export_failed" translatable="false">Couldn’t export file</string>
+    <string name="profiles_files_move_failed" translatable="false">Couldn’t move files</string>
+    <string name="profiles_files_import_failed" translatable="false">Couldn’t import files</string>
+    <plurals name="profiles_files_moved" translatable="false">
+        <item quantity="one">Moved %d file</item>
+        <item quantity="other">Moved %d files</item>
+    </plurals>
+    <plurals name="profiles_files_moved_partial" translatable="false">
+        <item quantity="one">Moved %1$d of %2$d file</item>
+        <item quantity="other">Moved %1$d of %2$d files</item>
+    </plurals>
+    <plurals name="profiles_files_imported_count" translatable="false">
+        <item quantity="one">Imported %d file</item>
+        <item quantity="other">Imported %d files</item>
+    </plurals>
+    <plurals name="profiles_files_imported_partial" translatable="false">
+        <item quantity="one">Imported %1$d of %2$d file</item>
+        <item quantity="other">Imported %1$d of %2$d files</item>
+    </plurals>
 </resources>

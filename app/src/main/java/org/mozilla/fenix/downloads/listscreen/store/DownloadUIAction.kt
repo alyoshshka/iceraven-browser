@@ -4,6 +4,7 @@
 
 package org.mozilla.fenix.downloads.listscreen.store
 
+import org.mozilla.fenix.profiles.ProfileFileResult
 import mozilla.components.lib.state.Action
 
 /** Actions to dispatch through the `DownloadStore` to modify `DownloadState` through the reducer. */
@@ -133,7 +134,7 @@ sealed interface DownloadUIAction : Action {
     /** Profiles: [DownloadUIAction] to filter the list by profile. */
     data class ProfileFilterSelected(val filter: ProfileFilter) : DownloadUIAction
 
-    /** Profiles: [DownloadUIAction] to show the "Move to..." chooser. */
+    /** Profiles: [DownloadUIAction] to show the "Move to" chooser. */
     data class ShowMoveDialog(val items: Set<FileItem>) : DownloadUIAction
 
     /** Profiles: [DownloadUIAction] to show the import target chooser. */
@@ -141,6 +142,12 @@ sealed interface DownloadUIAction : Action {
 
     /** Profiles: [DownloadUIAction] to close the move/import chooser. */
     data object DismissProfileDialog : DownloadUIAction
+
+    /** Profiles: [DownloadUIAction] fired when a move, export or import finished. */
+    data class ProfileFileOpFinished(val result: ProfileFileResult) : DownloadUIAction
+
+    /** Profiles: [DownloadUIAction] fired once the result snackbar was handed to the screen. */
+    data object ProfileFileResultShown : DownloadUIAction
 
     /** [DownloadUIAction] to confirm bulk deletion from the confirmation dialog. */
     data class ConfirmMultiSelectDelete(val items: Set<FileItem>) : DownloadUIAction

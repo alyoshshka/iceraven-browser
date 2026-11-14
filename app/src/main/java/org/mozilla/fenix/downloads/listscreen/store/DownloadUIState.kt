@@ -4,6 +4,7 @@
 
 package org.mozilla.fenix.downloads.listscreen.store
 
+import org.mozilla.fenix.profiles.ProfileFileResult
 import org.mozilla.fenix.profiles.ProfileStorage
 import mozilla.components.lib.state.State
 
@@ -39,6 +40,8 @@ data class DownloadUIState(
     // Profiles: which profile's files are listed.
     val profileFilter: ProfileFilter = ProfileFilter.All,
     val deletionSnackbarState: SnackbarState = SnackbarState.None,
+    // Profiles: one-time outcome of a move/export/import, shown as a snackbar.
+    val profileFileResult: ProfileFileResult? = null,
     private val isSearchFieldRequested: Boolean = false,
     private val userSelectedContentTypeFilter: FileItem.ContentTypeFilter = FileItem.ContentTypeFilter.All,
 ) : State {
@@ -108,8 +111,8 @@ data class DownloadUIState(
     /** Profiles: whether some file is outside the app (a Device chip is shown). */
     val hasDeviceFiles: Boolean = visibleItems.any { it.profileId == null }
 
-    /** Profiles: chips are shown only when files exist beyond the Default profile. */
-    val isProfileFilterVisible: Boolean = profileChips.isNotEmpty() || hasDeviceFiles
+    /** Profiles: the profile filter is shown only when files belong to more than one location. */
+    val isProfileFilterVisible: Boolean = visibleItems.map { it.profileId }.distinct().size > 1
 
     /** The list of content type filters to display. */
     val filtersToDisplay: List<FileItem.ContentTypeFilter> =
@@ -201,7 +204,7 @@ data class DownloadUIState(
          */
         data class MultiSelectDeleteConfirmation(val items: Set<FileItem>) : DialogState
 
-        /** Profiles: the "Move to..." target chooser for [items]. */
+        /** Profiles: the "Move to" target chooser for [items]. */
         data class MoveTo(val items: Set<FileItem>) : DialogState
 
         /** Profiles: the target chooser for imported files. */

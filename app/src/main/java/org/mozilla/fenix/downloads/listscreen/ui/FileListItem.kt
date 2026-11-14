@@ -56,6 +56,7 @@ import org.mozilla.fenix.downloads.listscreen.DownloadsListTestTag
 import org.mozilla.fenix.downloads.listscreen.store.FileItem
 import org.mozilla.fenix.downloads.listscreen.store.TimeCategory
 import org.mozilla.fenix.profiles.ProfileDot
+import org.mozilla.fenix.profiles.ProfileFileOps
 import org.mozilla.fenix.theme.FirefoxTheme
 
 /**
@@ -308,6 +309,8 @@ private fun AfterListItemAction(
                     onRenameFileClick = { onRenameFileClick(fileItem) },
                     onMoveFileClick = { onMoveFileClick(fileItem) },
                     onExportFileClick = { onExportFileClick(fileItem) },
+                    // Profiles: imported files have no web origin to share.
+                    showShareUrl = fileItem.url != ProfileFileOps.IMPORTED_URL,
                 ),
             expanded = menuExpanded,
             onDismissRequest = { menuExpanded = false },
@@ -352,15 +355,16 @@ private fun getContextMenuItems(
     onRenameFileClick: () -> Unit,
     onMoveFileClick: () -> Unit,
     onExportFileClick: () -> Unit,
+    showShareUrl: Boolean,
 ) =
     when (status) {
         FileItem.Status.Completed ->
-            listOf(
+            listOfNotNull(
                 MenuItem.TextItem(
                     text = Text.Resource(R.string.download_share_url),
                     onClick = onShareUrlClick,
                     level = MenuItem.FixedItem.Level.Default,
-                ),
+                ).takeIf { showShareUrl },
                 MenuItem.TextItem(
                     text = Text.Resource(R.string.download_share_file),
                     onClick = onShareFileClick,

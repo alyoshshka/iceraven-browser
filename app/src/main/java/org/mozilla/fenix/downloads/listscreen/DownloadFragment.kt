@@ -14,7 +14,9 @@ import androidx.fragment.app.Fragment
 import androidx.fragment.compose.content
 import androidx.lifecycle.viewModelScope
 import androidx.navigation.fragment.findNavController
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import mozilla.components.lib.state.helpers.StoreProvider.Companion.fragmentStore
 import mozilla.components.lib.state.helpers.StoreProvider.Companion.storeProvider
 import mozilla.components.support.utils.DefaultDownloadFileUtils
@@ -33,6 +35,7 @@ import org.mozilla.fenix.ext.components
 import org.mozilla.fenix.ext.hideToolbar
 import org.mozilla.fenix.ext.requireComponents
 import org.mozilla.fenix.profiles.ProfileFileOps
+import org.mozilla.fenix.profiles.ProfileFileResult
 import org.mozilla.fenix.settings.downloads.DownloadLocationManager
 import org.mozilla.fenix.theme.FirefoxTheme
 
@@ -71,7 +74,7 @@ class DownloadFragment : Fragment(), SystemInsetsPaddedFragment {
             pendingExport = null
             if (uri != null && item != null) {
                 val appContext = requireContext().applicationContext
-                ProfileFileOps.scope.launch { ProfileFileOps.export(appContext, item, uri) }
+                runFileOp { ProfileFileOps.export(appContext, item, uri) }
             }
         }
 
@@ -82,6 +85,17 @@ class DownloadFragment : Fragment(), SystemInsetsPaddedFragment {
                 downloadStore.dispatch(DownloadUIAction.ShowImportTargetDialog)
             }
         }
+
+    /** Runs [op] so it outlives the screen; its result goes to the snackbar unless the screen is gone. */
+    private fun runFileOp(op: suspend () -> ProfileFileResult) {
+        val store = downloadStore
+        ProfileFileOps.scope.launch {
+            val result = op()
+            withContext(Dispatchers.Main) {
+                if (view != null) store.dispatch(DownloadUIAction.ProfileFileOpFinished(result))
+            }
+        }
+    }
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -94,7 +108,7 @@ class DownloadFragment : Fragment(), SystemInsetsPaddedFragment {
                 onItemClick = { openItem(it) },
                 onMoveItems = { items, target ->
                     val appContext = requireContext().applicationContext
-                    ProfileFileOps.scope.launch {
+                    runFileOp {
                         ProfileFileOps.move(appContext, appContext.components.core.store, items, target)
                     }
                 },
@@ -107,7 +121,7 @@ class DownloadFragment : Fragment(), SystemInsetsPaddedFragment {
                     val uris = pendingImport
                     pendingImport = emptyList()
                     val appContext = requireContext().applicationContext
-                    ProfileFileOps.scope.launch {
+                    runFileOp {
                         ProfileFileOps.import(appContext, appContext.components.core.store, uris, target)
                     }
                 },

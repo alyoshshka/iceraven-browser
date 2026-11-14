@@ -4,89 +4,99 @@
 
 package org.mozilla.fenix.downloads.listscreen.ui
 
-import androidx.compose.foundation.layout.Arrangement
+import android.content.Context
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
 import mozilla.components.compose.base.SelectableChip
+import mozilla.components.compose.base.button.TextButton
+import mozilla.components.compose.base.menu.DropdownMenu
+import mozilla.components.compose.base.menu.MenuItem
+import mozilla.components.compose.base.text.Text as MenuText
+import mozilla.components.feature.prompts.R as promptsR
 import org.mozilla.fenix.R
+import org.mozilla.fenix.compose.list.RadioButtonListItem
 import org.mozilla.fenix.downloads.listscreen.store.FileItem
 import org.mozilla.fenix.downloads.listscreen.store.ProfileFilter
 import org.mozilla.fenix.ext.components
+import org.mozilla.fenix.profiles.ProfileFileResult
 import org.mozilla.fenix.profiles.ProfileStorage
 import org.mozilla.fenix.theme.FirefoxTheme
 
-/** Profiles: chips All / Default / each profile with files / Device (only if such files exist). Each profile that owns a listed file. */
+/**
+ * Profiles: the profile filter, a chip for the start of the [Filters] row. Tapping it opens a dropdown with
+ * "All profiles", Default, each profile that owns a listed file and (if such files exist) "Device downloads".
+ *
+ * @param selected The profile filter currently applied.
+ * @param profiles Files whose profile (id and name) is offered as an option.
+ * @param showDevice Whether "Device downloads" is offered.
+ * @param onSelected Invoked with the chosen filter.
+ */
 @Composable
-internal fun ProfileFilters(
+internal fun ProfileFilterChip(
     selected: ProfileFilter,
     profiles: List<FileItem>,
     showDevice: Boolean,
-    modifier: Modifier = Modifier,
     onSelected: (ProfileFilter) -> Unit,
 ) {
-    LazyRow(
-        modifier = modifier,
-        horizontalArrangement = Arrangement.spacedBy(FirefoxTheme.layout.space.static100),
-        contentPadding = PaddingValues(horizontal = FirefoxTheme.layout.space.static200),
-    ) {
-        item {
-            SelectableChip(
-                text = stringResource(R.string.profiles_files_all),
-                selected = selected == ProfileFilter.All,
-                modifier = Modifier.height(36.dp),
-                onClick = { onSelected(ProfileFilter.All) },
-            )
+    var expanded by remember { mutableStateOf(false) }
+    val allLabel = stringResource(R.string.profiles_files_all_profiles)
+    val defaultLabel = stringResource(R.string.profiles_files_default)
+    val deviceLabel = stringResource(R.string.profiles_files_device_downloads)
+
+    val options = buildList {
+        add(ProfileFilter.All to allLabel)
+        add(ProfileFilter.Profile(ProfileStorage.DEFAULT_ID) to defaultLabel)
+        profiles.forEach { item ->
+            val id = item.profileId ?: return@forEach
+            add(ProfileFilter.Profile(id) to (item.profileName ?: id))
         }
-        item {
-            SelectableChip(
-                text = stringResource(R.string.profiles_files_default),
-                selected = selected == ProfileFilter.Profile(ProfileStorage.DEFAULT_ID),
-                modifier = Modifier.height(36.dp),
-                onClick = { onSelected(ProfileFilter.Profile(ProfileStorage.DEFAULT_ID)) },
-            )
-        }
-        items(items = profiles, key = { it.profileId ?: "" }) { item ->
-            val id = item.profileId ?: return@items
-            SelectableChip(
-                text = item.profileName ?: id,
-                selected = selected == ProfileFilter.Profile(id),
-                modifier = Modifier.height(36.dp),
-                onClick = { onSelected(ProfileFilter.Profile(id)) },
-            )
-        }
-        if (showDevice) {
-            item {
-                SelectableChip(
-                    text = stringResource(R.string.profiles_files_device),
-                    selected = selected == ProfileFilter.Device,
-                    modifier = Modifier.height(36.dp),
-                    onClick = { onSelected(ProfileFilter.Device) },
+        if (showDevice) add(ProfileFilter.Device to deviceLabel)
+    }
+    val label = options.firstOrNull { it.first == selected }?.second ?: allLabel
+
+    // Chip and DropdownMenu in a common parent so the menu position is calculated correctly.
+    Box {
+        SelectableChip(
+            text = label,
+            selected = selected != ProfileFilter.All,
+            modifier = Modifier.height(FilterChipHeight),
+            onClick = { expanded = true },
+        )
+
+        DropdownMenu(
+            expanded = expanded,
+            menuItems = options.map { (filter, text) ->
+                MenuItem.TextItem(
+                    text = MenuText.String(text),
+                    level = MenuItem.FixedItem.Level.Default,
+                    onClick = { onSelected(filter) },
                 )
-            }
-        }
+            },
+            onDismissRequest = { expanded = false },
+        )
     }
 }
 
 /**
- * Profiles: simple chooser dialog listing Default, every existing profile and "Device Downloads".
+ * Profiles: chooser dialog listing Default, every existing profile and "Device downloads" as radio rows.
+ * Tapping a row chooses it and closes the dialog.
  *
  * @param excludedIds Profile ids not offered (the current location).
- * @param excludeDevice Whether "Device Downloads" is not offered.
- * @param onChoose Invoked with the chosen profile id, or null for Device Downloads.
+ * @param excludeDevice Whether "Device downloads" is not offered.
+ * @param onChoose Invoked with the chosen profile id, or null for Device downloads.
  */
 @Composable
 internal fun ProfileTargetDialog(
@@ -102,30 +112,67 @@ internal fun ProfileTargetDialog(
     }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(title) },
+        title = {
+            Text(
+                text = title,
+                style = FirefoxTheme.typography.headline5,
+            )
+        },
         text = {
-            Column(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                 if (ProfileStorage.DEFAULT_ID !in excludedIds) {
-                    TextButton(
+                    RadioButtonListItem(
+                        label = stringResource(R.string.profiles_files_default),
+                        selected = false,
                         onClick = { onChoose(ProfileStorage.DEFAULT_ID) },
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Text(stringResource(R.string.profiles_files_default), textAlign = TextAlign.Start)
-                    }
+                    )
                 }
                 profiles.forEach { container ->
-                    TextButton(onClick = { onChoose(container.contextId) }, modifier = Modifier.fillMaxWidth()) {
-                        Text(container.name, textAlign = TextAlign.Start)
-                    }
+                    RadioButtonListItem(
+                        label = container.name,
+                        selected = false,
+                        onClick = { onChoose(container.contextId) },
+                    )
                 }
                 if (!excludeDevice) {
-                    TextButton(onClick = { onChoose(null) }, modifier = Modifier.fillMaxWidth()) {
-                        Text(stringResource(R.string.profiles_files_device_downloads), textAlign = TextAlign.Start)
-                    }
+                    RadioButtonListItem(
+                        label = stringResource(R.string.profiles_files_device_downloads),
+                        selected = false,
+                        onClick = { onChoose(null) },
+                    )
                 }
             }
         },
         confirmButton = {},
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.profiles_cancel)) } },
+        dismissButton = {
+            TextButton(
+                text = stringResource(promptsR.string.mozac_feature_prompts_cancel),
+                onClick = onDismiss,
+            )
+        },
     )
+}
+
+/** Profiles: the snackbar message for the outcome of a move, export or import. */
+internal fun profileFileResultMessage(context: Context, result: ProfileFileResult): String {
+    val res = context.resources
+    return when (result) {
+        is ProfileFileResult.Moved -> when {
+            result.moved == 0 -> context.getString(R.string.profiles_files_move_failed)
+            result.moved == result.total -> res.getQuantityString(R.plurals.profiles_files_moved, result.moved, result.moved)
+            else -> res.getQuantityString(
+                R.plurals.profiles_files_moved_partial, result.total, result.moved, result.total,
+            )
+        }
+        is ProfileFileResult.Exported ->
+            context.getString(if (result.success) R.string.profiles_files_exported else R.string.profiles_files_export_failed)
+        is ProfileFileResult.Imported -> when {
+            result.imported == 0 -> context.getString(R.string.profiles_files_import_failed)
+            result.imported == result.total ->
+                res.getQuantityString(R.plurals.profiles_files_imported_count, result.imported, result.imported)
+            else -> res.getQuantityString(
+                R.plurals.profiles_files_imported_partial, result.total, result.imported, result.total,
+            )
+        }
+    }
 }

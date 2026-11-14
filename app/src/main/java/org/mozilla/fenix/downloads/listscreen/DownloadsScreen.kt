@@ -83,8 +83,9 @@ import org.mozilla.fenix.downloads.listscreen.store.TimeCategory
 import org.mozilla.fenix.downloads.listscreen.ui.DownloadSearchField
 import org.mozilla.fenix.downloads.listscreen.ui.FileListItem
 import org.mozilla.fenix.downloads.listscreen.ui.Filters
-import org.mozilla.fenix.downloads.listscreen.ui.ProfileFilters
+import org.mozilla.fenix.downloads.listscreen.ui.ProfileFilterChip
 import org.mozilla.fenix.downloads.listscreen.ui.ProfileTargetDialog
+import org.mozilla.fenix.downloads.listscreen.ui.profileFileResultMessage
 import org.mozilla.fenix.downloads.listscreen.ui.ToolbarConfig
 import org.mozilla.fenix.theme.FirefoxTheme
 
@@ -142,6 +143,16 @@ fun DownloadsScreen(
         }
     }
 
+    // Profiles: outcome of a move/export/import, shown in the same snackbar host.
+    val fileResult = uiState.profileFileResult
+    if (fileResult != null) {
+        LaunchedEffect(fileResult) {
+            val message = profileFileResultMessage(context, fileResult)
+            downloadsStore.dispatch(DownloadUIAction.ProfileFileResultShown)
+            coroutineScope.launch { snackbarHostState.displaySnackbar(message = message) }
+        }
+    }
+
     val dialogState = uiState.dialogState
 
     if (dialogState is DownloadUIState.DialogState.DeleteConfirmation) {
@@ -166,7 +177,7 @@ fun DownloadsScreen(
         )
     }
 
-    // Profiles: target chooser for "Move to..." and for imports.
+    // Profiles: target chooser for "Move to" and for imports.
     if (dialogState is DownloadUIState.DialogState.MoveTo) {
         val moving = dialogState.items
         ProfileTargetDialog(
@@ -458,25 +469,27 @@ private fun DownloadsScreenContent(
         modifier = Modifier.padding(paddingValues).imePadding(),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        if (uiState.isProfileFilterVisible) {
-            ProfileFilters(
-                selected = uiState.profileFilter,
-                profiles = uiState.profileChips,
-                showDevice = uiState.hasDeviceFiles,
-                modifier =
-                    Modifier.width(FirefoxTheme.layout.size.containerMaxWidth)
-                        .padding(top = FirefoxTheme.layout.space.static200),
-                onSelected = onProfileFilterSelected,
-            )
-        }
-
-        if (uiState.filtersToDisplay.isNotEmpty()) {
+        // Profiles: the profile dropdown chip leads the content type filters.
+        if (uiState.filtersToDisplay.isNotEmpty() || uiState.isProfileFilterVisible) {
             Filters(
                 selectedContentTypeFilter = uiState.selectedContentTypeFilter,
                 contentTypeFilters = uiState.filtersToDisplay,
                 modifier =
                     Modifier.width(FirefoxTheme.layout.size.containerMaxWidth)
                         .padding(vertical = FirefoxTheme.layout.space.static200),
+                leadingChip =
+                    if (uiState.isProfileFilterVisible) {
+                        {
+                            ProfileFilterChip(
+                                selected = uiState.profileFilter,
+                                profiles = uiState.profileChips,
+                                showDevice = uiState.hasDeviceFiles,
+                                onSelected = onProfileFilterSelected,
+                            )
+                        }
+                    } else {
+                        null
+                    },
                 onContentTypeSelected = onContentTypeSelected,
             )
         }

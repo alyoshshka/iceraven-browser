@@ -20,11 +20,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.PreviewLightDark
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import mozilla.components.compose.base.SelectableChip
 import org.mozilla.fenix.compose.ext.isItemPartiallyVisible
 import org.mozilla.fenix.downloads.listscreen.store.FileItem
 import org.mozilla.fenix.theme.FirefoxTheme
+
+/** Profiles: height shared by the content type chips and the profile chip. */
+internal val FilterChipHeight: Dp = 36.dp
 
 /**
  * The row of filters displayed on the downloads screen.
@@ -32,6 +36,7 @@ import org.mozilla.fenix.theme.FirefoxTheme
  * @param selectedContentTypeFilter The content type filter that is currently selected.
  * @param contentTypeFilters The content type filters to be displayed.
  * @param modifier Modifier to be applied to the row layout.
+ * @param leadingChip Profiles: optional chip displayed before the content type chips (the profile filter).
  * @param onContentTypeSelected Invoked when a filter is clicked.
  */
 @Composable
@@ -39,6 +44,7 @@ internal fun Filters(
     selectedContentTypeFilter: FileItem.ContentTypeFilter,
     contentTypeFilters: List<FileItem.ContentTypeFilter>,
     modifier: Modifier = Modifier,
+    leadingChip: (@Composable () -> Unit)? = null,
     onContentTypeSelected: (FileItem.ContentTypeFilter) -> Unit,
 ) {
     val listState = rememberLazyListState()
@@ -48,6 +54,9 @@ internal fun Filters(
         horizontalArrangement = Arrangement.spacedBy(FirefoxTheme.layout.space.static100),
         contentPadding = PaddingValues(horizontal = FirefoxTheme.layout.space.static200),
     ) {
+        if (leadingChip != null) {
+            item(key = "profile-filter") { leadingChip() }
+        }
         items(
             items = contentTypeFilters,
             key = { it },
@@ -55,7 +64,7 @@ internal fun Filters(
             SelectableChip(
                 text = stringResource(id = contentTypeParam.stringRes),
                 selected = selectedContentTypeFilter == contentTypeParam,
-                modifier = Modifier.height(36.dp),
+                modifier = Modifier.height(FilterChipHeight),
                 onClick = { onContentTypeSelected(contentTypeParam) },
             )
         }
@@ -65,7 +74,9 @@ internal fun Filters(
         val selectedItemInfo = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.key == selectedContentTypeFilter }
 
         if (selectedItemInfo == null || listState.isItemPartiallyVisible(selectedItemInfo)) {
-            listState.animateScrollToItem(contentTypeFilters.indexOf(selectedContentTypeFilter))
+            listState.animateScrollToItem(
+                contentTypeFilters.indexOf(selectedContentTypeFilter) + if (leadingChip != null) 1 else 0,
+            )
         }
     }
 }

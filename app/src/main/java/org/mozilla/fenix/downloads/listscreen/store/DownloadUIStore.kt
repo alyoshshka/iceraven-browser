@@ -157,6 +157,8 @@ private fun downloadStateReducer(
             state.copy(dialogState = DownloadUIState.DialogState.MoveTo(action.items))
         is DownloadUIAction.ShowImportTargetDialog ->
             state.copy(dialogState = DownloadUIState.DialogState.ImportTarget)
+        is DownloadUIAction.ProfileFileOpFinished -> state.copy(profileFileResult = action.result)
+        is DownloadUIAction.ProfileFileResultShown -> state.copy(profileFileResult = null)
         is DownloadUIAction.DismissProfileDialog -> state.copy(dialogState = DownloadUIState.DialogState.None)
 
         is DownloadUIAction.ConfirmMultiSelectDelete ->
