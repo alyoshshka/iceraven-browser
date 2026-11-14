@@ -24,6 +24,8 @@ import org.mozilla.fenix.downloads.listscreen.store.DownloadUIState
 import org.mozilla.fenix.downloads.listscreen.store.FileItem
 import org.mozilla.fenix.downloads.listscreen.store.TimeCategory
 import org.mozilla.fenix.ext.getBaseDomainUrl
+import org.mozilla.fenix.profiles.ProfileStorage
+import org.mozilla.fenix.profiles.toArgb
 
 /**
  * Middleware for loading and mapping download items from the browser store.
@@ -40,6 +42,7 @@ class DownloadUIMapperMiddleware(
     private val fileItemDescriptionProvider: FileItemDescriptionProvider,
     private val scope: CoroutineScope,
     private val dateTimeProvider: DateTimeProvider = DefaultDateTimeProvider(),
+    private val profileStorage: ProfileStorage? = null,
 ) : Middleware<DownloadUIState, DownloadUIAction> {
 
     override fun invoke(
@@ -64,7 +67,7 @@ class DownloadUIMapperMiddleware(
         scope.launch {
             browserStore
                 .flow()
-                .distinctUntilChangedBy { it.downloads }
+                .distinctUntilChangedBy { it.downloads to it.containers }
                 .map { it.downloads.toFileItemsList() }
                 .collect {
                     store.dispatch(DownloadUIAction.UpdateFileItems(it))
@@ -81,7 +84,15 @@ class DownloadUIMapperMiddleware(
 
     private fun isDisplayableItem(status: DownloadState.Status) = status != DownloadState.Status.CANCELLED
 
-    private suspend fun DownloadState.toFileItem() =
+    // Profiles: profileId/name/color of the owning profile, derived from directoryPath.
+    private suspend fun DownloadState.toFileItem(): FileItem {
+        val profileId = profileStorage?.profileOfPath(directoryPath)
+        val container = profileId?.let { browserStore.state.containers[it] }
+        val profileName = profileId?.let { container?.name ?: profileStorage.knownProfiles()[it] ?: it }
+        return toFileItem(profileId, profileName, container?.color?.toArgb())
+    }
+
+    private suspend fun DownloadState.toFileItem(profileId: String?, profileName: String?, profileColor: Int?) =
         FileItem(
             id = id,
             url = url,
@@ -97,6 +108,9 @@ class DownloadUIMapperMiddleware(
                     status = status,
                 ),
             description = fileItemDescriptionProvider.getDescription(downloadState = this),
+            profileId = profileId,
+            profileName = profileName,
+            profileColor = profileColor,
         )
 
     private fun DownloadState.Status.toFileItemStatus(

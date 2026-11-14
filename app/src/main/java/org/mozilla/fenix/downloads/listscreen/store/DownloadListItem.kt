@@ -37,6 +37,10 @@ data class FileItem(
     val status: Status,
     val timeCategory: TimeCategory,
     val description: String,
+    // Profiles: owning profile of the file (null = shared public Downloads).
+    val profileId: String? = null,
+    val profileName: String? = null,
+    val profileColor: Int? = null,
 ) : DownloadListItem {
 
     /** The icon resource ID associated with this [FileItem]. */

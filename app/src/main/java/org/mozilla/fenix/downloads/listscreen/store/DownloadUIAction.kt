@@ -130,6 +130,18 @@ sealed interface DownloadUIAction : Action {
     /** [DownloadUIAction] to show the confirmation dialog for bulk deletions. */
     data class ShowMultiSelectDeleteDialog(val items: Set<FileItem>) : DownloadUIAction
 
+    /** Profiles: [DownloadUIAction] to filter the list by profile. */
+    data class ProfileFilterSelected(val filter: ProfileFilter) : DownloadUIAction
+
+    /** Profiles: [DownloadUIAction] to show the "Move to..." chooser. */
+    data class ShowMoveDialog(val items: Set<FileItem>) : DownloadUIAction
+
+    /** Profiles: [DownloadUIAction] to show the import target chooser. */
+    data object ShowImportTargetDialog : DownloadUIAction
+
+    /** Profiles: [DownloadUIAction] to close the move/import chooser. */
+    data object DismissProfileDialog : DownloadUIAction
+
     /** [DownloadUIAction] to confirm bulk deletion from the confirmation dialog. */
     data class ConfirmMultiSelectDelete(val items: Set<FileItem>) : DownloadUIAction
 }

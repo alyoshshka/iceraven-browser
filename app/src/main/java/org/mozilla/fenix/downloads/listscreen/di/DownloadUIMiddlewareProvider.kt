@@ -23,6 +23,7 @@ import org.mozilla.fenix.downloads.listscreen.middleware.DownloadsServiceCommuni
 import org.mozilla.fenix.downloads.listscreen.store.DownloadUIAction
 import org.mozilla.fenix.downloads.listscreen.store.DownloadUIState
 import org.mozilla.fenix.ext.components
+import org.mozilla.fenix.profiles.ProfileStorage
 import org.mozilla.fenix.utils.Settings.DeleteDownloadBehavior
 import org.mozilla.fenix.utils.getUndoDelay
 
@@ -72,6 +73,7 @@ internal object DownloadUIMiddlewareProvider {
             browserStore = applicationContext.components.core.store,
             publicSuffixList = applicationContext.components.publicSuffixList,
             scope = coroutineScope,
+            profileStorage = ProfileStorage(applicationContext),
             fileItemDescriptionProvider =
                 DefaultFileItemDescriptionProvider(
                     context = applicationContext,

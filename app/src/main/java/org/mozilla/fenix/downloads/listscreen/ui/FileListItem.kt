@@ -54,6 +54,7 @@ import org.mozilla.fenix.compose.swipeToDismissFade
 import org.mozilla.fenix.downloads.listscreen.DownloadsListTestTag
 import org.mozilla.fenix.downloads.listscreen.store.FileItem
 import org.mozilla.fenix.downloads.listscreen.store.TimeCategory
+import org.mozilla.fenix.tabstray.ui.tabitems.profileStripe
 import org.mozilla.fenix.theme.FirefoxTheme
 
 /**
@@ -92,6 +93,8 @@ internal fun FileListItem(
     onShareUrlClick: (FileItem) -> Unit,
     onShareFileClick: (FileItem) -> Unit,
     onRenameFileClick: (FileItem) -> Unit,
+    onMoveFileClick: (FileItem) -> Unit = {},
+    onExportFileClick: (FileItem) -> Unit = {},
 ) {
     val swipeToDismissBoxState = rememberSwipeToDismissBoxState(id = fileItem.id)
     val currentFileItem by rememberUpdatedState(fileItem)
@@ -126,6 +129,8 @@ internal fun FileListItem(
             onShareUrlClick = onShareUrlClick,
             onShareFileClick = onShareFileClick,
             onRenameFileClick = onRenameFileClick,
+            onMoveFileClick = onMoveFileClick,
+            onExportFileClick = onExportFileClick,
         )
     }
 }
@@ -146,6 +151,8 @@ private fun FileListItemMainContent(
     onShareUrlClick: (FileItem) -> Unit,
     onShareFileClick: (FileItem) -> Unit,
     onRenameFileClick: (FileItem) -> Unit,
+    onMoveFileClick: (FileItem) -> Unit,
+    onExportFileClick: (FileItem) -> Unit,
 ) {
     val isFailed = fileItem.status == FileItem.Status.Failed
     val colorScheme = MaterialTheme.colorScheme
@@ -153,11 +160,13 @@ private fun FileListItemMainContent(
 
     SelectableListItem(
         label = fileItem.fileName ?: fileItem.url,
-        description = fileItem.description,
+        // Profiles: "<profile> · " or "Shared · " prefix.
+        description = "${fileItem.profileName ?: stringResource(R.string.profiles_files_shared)} · ${fileItem.description}",
         icon = if (isFailed) iconsR.drawable.mozac_ic_critical_24 else fileItem.icon,
         isSelected = isSelected,
         modifier =
-            Modifier.swipeToDismissFade(swipeToDismissBoxState)
+            Modifier.profileStripe(fileItem.profileColor)
+                .swipeToDismissFade(swipeToDismissBoxState)
                 .selectableListItemProgressSemantics(status = fileItem.status)
                 .thenConditional(
                     Modifier.combinedClickable(
@@ -181,6 +190,8 @@ private fun FileListItemMainContent(
                     onShareUrlClick = onShareUrlClick,
                     onShareFileClick = onShareFileClick,
                     onRenameFileClick = onRenameFileClick,
+                    onMoveFileClick = onMoveFileClick,
+                    onExportFileClick = onExportFileClick,
                 )
             }
         },
@@ -222,6 +233,8 @@ private fun AfterListItemAction(
     onShareUrlClick: (FileItem) -> Unit,
     onShareFileClick: (FileItem) -> Unit,
     onRenameFileClick: (FileItem) -> Unit,
+    onMoveFileClick: (FileItem) -> Unit,
+    onExportFileClick: (FileItem) -> Unit,
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
 
@@ -291,6 +304,8 @@ private fun AfterListItemAction(
                     onShareUrlClick = { onShareUrlClick(fileItem) },
                     onShareFileClick = { onShareFileClick(fileItem) },
                     onRenameFileClick = { onRenameFileClick(fileItem) },
+                    onMoveFileClick = { onMoveFileClick(fileItem) },
+                    onExportFileClick = { onExportFileClick(fileItem) },
                 ),
             expanded = menuExpanded,
             onDismissRequest = { menuExpanded = false },
@@ -333,6 +348,8 @@ private fun getContextMenuItems(
     onShareUrlClick: () -> Unit,
     onShareFileClick: () -> Unit,
     onRenameFileClick: () -> Unit,
+    onMoveFileClick: () -> Unit,
+    onExportFileClick: () -> Unit,
 ) =
     when (status) {
         FileItem.Status.Completed ->
@@ -350,6 +367,17 @@ private fun getContextMenuItems(
                 MenuItem.TextItem(
                     text = Text.Resource(R.string.download_rename_file),
                     onClick = onRenameFileClick,
+                    level = MenuItem.FixedItem.Level.Default,
+                ),
+                // Profiles: move between profiles / export out of the app.
+                MenuItem.TextItem(
+                    text = Text.Resource(R.string.profiles_files_move_to),
+                    onClick = onMoveFileClick,
+                    level = MenuItem.FixedItem.Level.Default,
+                ),
+                MenuItem.TextItem(
+                    text = Text.Resource(R.string.profiles_files_export),
+                    onClick = onExportFileClick,
                     level = MenuItem.FixedItem.Level.Default,
                 ),
                 MenuItem.TextItem(

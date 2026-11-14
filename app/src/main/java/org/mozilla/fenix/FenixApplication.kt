@@ -39,7 +39,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import mozilla.appservices.autofill.AutofillApiException
@@ -48,6 +50,7 @@ import mozilla.components.browser.state.action.SearchAction.SearchConfigurationA
 import mozilla.components.browser.state.action.SystemAction
 import mozilla.components.browser.state.state.selectedOrDefaultPrivateSearchEngine
 import mozilla.components.browser.state.store.BrowserStore
+import mozilla.components.lib.state.ext.flow
 import mozilla.components.browser.storage.sync.GlobalPlacesDependencyProvider
 import mozilla.components.compose.base.theme.Theme
 import mozilla.components.compose.base.theme.Theme.Private
@@ -473,6 +476,17 @@ open class FenixApplication : Application(), Provider, ThemeProvider {
         }
 
         components.tabDataCoordinator.initialize()
+
+        // Profiles: cache container names so the system file picker can label roots (profiles
+        // created before names were cached never got one).
+        applicationScope.launch(ioDispatcher) {
+            val profileStorage = org.mozilla.fenix.profiles.ProfileStorage(applicationContext)
+            components.core.store.flow().map { it.containers }.distinctUntilChanged().collect { containers ->
+                val known = profileStorage.knownProfiles()
+                containers.values.filter { known[it.contextId] != it.name }
+                    .forEach { profileStorage.setName(it.contextId, it.name) }
+            }
+        }
     }
 
     private fun restoreBrowserState() = applicationScope.launch {

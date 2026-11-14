@@ -78,10 +78,13 @@ import org.mozilla.fenix.downloads.listscreen.store.DownloadUIState.Mode
 import org.mozilla.fenix.downloads.listscreen.store.DownloadUIStore
 import org.mozilla.fenix.downloads.listscreen.store.FileItem
 import org.mozilla.fenix.downloads.listscreen.store.HeaderItem
+import org.mozilla.fenix.downloads.listscreen.store.ProfileFilter
 import org.mozilla.fenix.downloads.listscreen.store.TimeCategory
 import org.mozilla.fenix.downloads.listscreen.ui.DownloadSearchField
 import org.mozilla.fenix.downloads.listscreen.ui.FileListItem
 import org.mozilla.fenix.downloads.listscreen.ui.Filters
+import org.mozilla.fenix.downloads.listscreen.ui.ProfileFilters
+import org.mozilla.fenix.downloads.listscreen.ui.ProfileTargetDialog
 import org.mozilla.fenix.downloads.listscreen.ui.ToolbarConfig
 import org.mozilla.fenix.theme.FirefoxTheme
 
@@ -90,12 +93,22 @@ import org.mozilla.fenix.theme.FirefoxTheme
  *
  * @param downloadsStore The [DownloadUIStore] used to manage and access the state of download items.
  * @param onItemClick Callback invoked when a download item is clicked.
+ * @param onMoveItems Profiles: moves the items to a profile id (null = Shared).
+ * @param onExportItem Profiles: exports the item out of the app.
+ * @param onImportClick Profiles: starts the file import picker.
+ * @param onImportTarget Profiles: imports the picked files into a profile id (null = Shared).
+ * @param onImportCancelled Profiles: the import target chooser was dismissed.
  */
 @Suppress("LongMethod", "CognitiveComplexMethod")
 @Composable
 fun DownloadsScreen(
     downloadsStore: DownloadUIStore,
     onItemClick: (FileItem) -> Unit,
+    onMoveItems: (Set<FileItem>, String?) -> Unit = { _, _ -> },
+    onExportItem: (FileItem) -> Unit = {},
+    onImportClick: () -> Unit = {},
+    onImportTarget: (String?) -> Unit = {},
+    onImportCancelled: () -> Unit = {},
 ) {
     val uiState by downloadsStore.stateFlow.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -153,6 +166,36 @@ fun DownloadsScreen(
         )
     }
 
+    // Profiles: target chooser for "Move to..." and for imports.
+    if (dialogState is DownloadUIState.DialogState.MoveTo) {
+        val moving = dialogState.items
+        ProfileTargetDialog(
+            title = stringResource(R.string.profiles_files_move_to),
+            excludedIds = moving.map { it.profileId }.distinct().singleOrNull()?.let { setOf(it) } ?: emptySet(),
+            excludeShared = moving.all { it.profileId == null },
+            onChoose = { target ->
+                downloadsStore.dispatch(DownloadUIAction.DismissProfileDialog)
+                downloadsStore.dispatch(DownloadUIAction.ExitEditMode)
+                onMoveItems(moving, target)
+            },
+            onDismiss = { downloadsStore.dispatch(DownloadUIAction.DismissProfileDialog) },
+        )
+    } else if (dialogState is DownloadUIState.DialogState.ImportTarget) {
+        ProfileTargetDialog(
+            title = stringResource(R.string.profiles_files_import_to),
+            excludedIds = emptySet(),
+            excludeShared = false,
+            onChoose = { target ->
+                downloadsStore.dispatch(DownloadUIAction.DismissProfileDialog)
+                onImportTarget(target)
+            },
+            onDismiss = {
+                downloadsStore.dispatch(DownloadUIAction.DismissProfileDialog)
+                onImportCancelled()
+            },
+        )
+    }
+
     Scaffold(
         topBar = {
             DownloadsTopAppBar(
@@ -196,6 +239,16 @@ fun DownloadsScreen(
                 actions = {
                     if (uiState.isSettingsIconVisible) {
                         IconButton(
+                            onClick = onImportClick,
+                            contentDescription = stringResource(R.string.profiles_files_import),
+                        ) {
+                            Icon(
+                                painter = painterResource(iconsR.drawable.mozac_ic_import_data_24),
+                                contentDescription = null,
+                                tint = toolbarConfig.iconColor,
+                            )
+                        }
+                        IconButton(
                             onClick = {
                                 downloadsStore.dispatch(DownloadUIAction.SettingsIconClicked)
                             },
@@ -212,6 +265,9 @@ fun DownloadsScreen(
                         ToolbarEditActions(
                             downloadsStore = downloadsStore,
                             toolbarConfig = toolbarConfig,
+                            onItemMoveClick = {
+                                downloadsStore.dispatch(DownloadUIAction.ShowMoveDialog(uiState.mode.selectedItems))
+                            },
                             onItemDeleteClick = {
                                 downloadsStore.dispatch(
                                     DownloadUIAction.RequestDeleteMultiple(uiState.mode.selectedItems)
@@ -250,6 +306,14 @@ fun DownloadsScreen(
                     listState.scrollToItem(0)
                 }
             },
+            onProfileFilterSelected = {
+                downloadsStore.dispatch(DownloadUIAction.ProfileFilterSelected(it))
+                coroutineScope.launch {
+                    listState.scrollToItem(0)
+                }
+            },
+            onMoveFileClick = { downloadsStore.dispatch(DownloadUIAction.ShowMoveDialog(setOf(it))) },
+            onExportFileClick = onExportItem,
             onItemClick = onItemClick,
             onSelectionChange = { item, isSelected ->
                 if (isSelected) {
@@ -300,6 +364,7 @@ fun DownloadsScreen(
 private fun ToolbarEditActions(
     downloadsStore: DownloadUIStore,
     toolbarConfig: ToolbarConfig,
+    onItemMoveClick: () -> Unit,
     onItemDeleteClick: () -> Unit,
 ) {
     // IconButton and DropdownMenu in a common parent so the menu position is calculated correctly.
@@ -325,6 +390,11 @@ private fun ToolbarEditActions(
                         text = Text.Resource(R.string.download_select_all_items),
                         level = MenuItem.FixedItem.Level.Default,
                         onClick = { downloadsStore.dispatch(DownloadUIAction.AddAllItemsForRemoval) },
+                    ),
+                    MenuItem.TextItem(
+                        text = Text.Resource(R.string.profiles_files_move_to),
+                        level = MenuItem.FixedItem.Level.Default,
+                        onClick = onItemMoveClick,
                     ),
                     MenuItem.TextItem(
                         text = Text.Resource(R.string.download_delete_item),
@@ -366,6 +436,9 @@ private fun DownloadsScreenContent(
     paddingValues: PaddingValues,
     listState: LazyListState,
     onContentTypeSelected: (FileItem.ContentTypeFilter) -> Unit,
+    onProfileFilterSelected: (ProfileFilter) -> Unit,
+    onMoveFileClick: (FileItem) -> Unit,
+    onExportFileClick: (FileItem) -> Unit,
     onItemClick: (FileItem) -> Unit,
     onSelectionChange: (FileItem, Boolean) -> Unit,
     onPauseClick: (id: String) -> Unit,
@@ -385,6 +458,17 @@ private fun DownloadsScreenContent(
         modifier = Modifier.padding(paddingValues).imePadding(),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
+        if (uiState.isProfileFilterVisible) {
+            ProfileFilters(
+                selected = uiState.profileFilter,
+                profiles = uiState.profileChips,
+                modifier =
+                    Modifier.width(FirefoxTheme.layout.size.containerMaxWidth)
+                        .padding(top = FirefoxTheme.layout.space.static200),
+                onSelected = onProfileFilterSelected,
+            )
+        }
+
         if (uiState.filtersToDisplay.isNotEmpty()) {
             Filters(
                 selectedContentTypeFilter = uiState.selectedContentTypeFilter,
@@ -425,6 +509,8 @@ private fun DownloadsScreenContent(
                     onShareUrlClick = onShareUrlClick,
                     onShareFileClick = onShareFileClick,
                     onRenameFileClick = onRenameFileClick,
+                    onMoveFileClick = onMoveFileClick,
+                    onExportFileClick = onExportFileClick,
                     modifier = Modifier.fillMaxSize(),
                 )
         }
@@ -447,6 +533,8 @@ private fun DownloadsContent(
     onShareUrlClick: (FileItem) -> Unit,
     onShareFileClick: (FileItem) -> Unit,
     onRenameFileClick: (FileItem) -> Unit,
+    onMoveFileClick: (FileItem) -> Unit,
+    onExportFileClick: (FileItem) -> Unit,
 ) {
     val haptics = LocalHapticFeedback.current
 
@@ -487,6 +575,8 @@ private fun DownloadsContent(
                         onShareUrlClick = onShareUrlClick,
                         onShareFileClick = onShareFileClick,
                         onRenameFileClick = onRenameFileClick,
+                        onMoveFileClick = onMoveFileClick,
+                        onExportFileClick = onExportFileClick,
                         onClick = {
                                 if (mode is Mode.Normal) {
                                     onClick(listItem)

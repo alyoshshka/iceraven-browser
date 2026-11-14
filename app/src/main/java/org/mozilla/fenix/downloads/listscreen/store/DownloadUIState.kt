@@ -35,6 +35,8 @@ data class DownloadUIState(
     val isChangeFileExtensionDialogVisible: Boolean = false,
     val itemToChangeExtension: FileItem? = null,
     val dialogState: DialogState = DialogState.None,
+    // Profiles: which profile's files are listed.
+    val profileFilter: ProfileFilter = ProfileFilter.All,
     val deletionSnackbarState: SnackbarState = SnackbarState.None,
     private val isSearchFieldRequested: Boolean = false,
     private val userSelectedContentTypeFilter: FileItem.ContentTypeFilter = FileItem.ContentTypeFilter.All,
@@ -78,6 +80,7 @@ data class DownloadUIState(
             }
             .filter { selectedContentTypeFilter.predicate(it.contentType) }
             .filter { it.stringToMatchForSearchQuery.contains(searchQuery, ignoreCase = true) }
+            .filter { profileFilter.matches(it) }
 
     /** The list of items to display grouped by the created time of the item. */
     private val itemsToDisplay: List<DownloadListItem> =
@@ -95,6 +98,13 @@ data class DownloadUIState(
             .map { it.matchingContentTypeFilter }
             .distinct()
             .sorted()
+
+    /** Profiles: the private profiles that own at least one listed file (id to name and color). */
+    val profileChips: List<FileItem> =
+        visibleItems.filter { it.profileId != null }.distinctBy { it.profileId }
+
+    /** Profiles: chips are shown only when some file belongs to a profile. */
+    val isProfileFilterVisible: Boolean = profileChips.isNotEmpty()
 
     /** The list of content type filters to display. */
     val filtersToDisplay: List<FileItem.ContentTypeFilter> =
@@ -185,5 +195,32 @@ data class DownloadUIState(
          * @property items The items waiting for deletion confirmation.
          */
         data class MultiSelectDeleteConfirmation(val items: Set<FileItem>) : DialogState
+
+        /** Profiles: the "Move to..." target chooser for [items]. */
+        data class MoveTo(val items: Set<FileItem>) : DialogState
+
+        /** Profiles: the target chooser for imported files. */
+        data object ImportTarget : DialogState
+    }
+}
+
+/** Profiles: filter of the Downloads list by owning profile. */
+sealed interface ProfileFilter {
+    /** Whether [item] passes this filter. */
+    fun matches(item: FileItem): Boolean
+
+    /** Every file. */
+    data object All : ProfileFilter {
+        override fun matches(item: FileItem) = true
+    }
+
+    /** Only files in the shared public Downloads folder. */
+    data object Shared : ProfileFilter {
+        override fun matches(item: FileItem) = item.profileId == null
+    }
+
+    /** Only files in the private folder of profile [id]. */
+    data class Profile(val id: String) : ProfileFilter {
+        override fun matches(item: FileItem) = item.profileId == id
     }
 }
