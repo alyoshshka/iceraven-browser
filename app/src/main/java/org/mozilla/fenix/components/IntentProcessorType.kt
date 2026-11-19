@@ -49,6 +49,7 @@ fun IntentProcessors.getType(processor: IntentProcessor?) =
             privateIntentProcessor == processor ||
             fennecPageShortcutIntentProcessor == processor ||
             profileShortcutIntentProcessor == processor || // Profiles
+            profileLinkIntentProcessor == processor ||
             webNotificationsIntentProcessor == processor -> IntentProcessorType.NEW_TAB
         externalDeepLinkIntentProcessor == processor -> IntentProcessorType.EXTERNAL_DEEPLINK
         else -> IntentProcessorType.OTHER

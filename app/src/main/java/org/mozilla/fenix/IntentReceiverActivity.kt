@@ -29,6 +29,7 @@ import org.mozilla.fenix.ext.components
 import org.mozilla.fenix.ext.isIntentInternal
 import org.mozilla.fenix.perf.MarkersActivityLifecycleCallbacks
 import org.mozilla.fenix.perf.StartupTimeline
+import org.mozilla.fenix.profiles.ProfileChooserActivity
 import org.mozilla.fenix.shortcut.NewTabShortcutIntentProcessor
 import org.mozilla.fenix.shortcut.UninstallShortcutIntentProcessor
 
@@ -107,6 +108,15 @@ class IntentReceiverActivity : Activity() {
         }
 
         val processor = getIntentProcessors(private).firstOrNull { it.process(intent) }
+
+        // Profiles: a link from another app that needs a profile choice is shown in a dialog over the caller.
+        if (processor != null && processor == components.intentProcessors.profileLinkIntentProcessor) {
+            components.strictMode.allowViolation(StrictMode::allowThreadDiskReads) {
+                startActivity(ProfileChooserActivity.createIntent(this, intent))
+            }
+            finish()
+            return
+        }
         val intentProcessorType = components.intentProcessors.getType(processor)
 
         if (intentProcessorType.shouldOpenToBrowser(intent)) {
@@ -158,6 +168,7 @@ class IntentReceiverActivity : Activity() {
 
         // Profiles: the profile shortcut processor must come before TabIntentProcessor.
         return components.intentProcessors.externalAppIntentProcessors +
+            components.intentProcessors.profileLinkIntentProcessor +
             components.intentProcessors.profileShortcutIntentProcessor +
             components.intentProcessors.addonInstallIntentProcessor +
             components.intentProcessors.fennecPageShortcutIntentProcessor +

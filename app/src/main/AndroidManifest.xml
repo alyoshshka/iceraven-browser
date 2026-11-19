@@ -731,6 +731,14 @@
             android:taskAffinity=""
             android:windowSoftInputMode="adjustResize|stateAlwaysHidden" />
 
+        <!-- Profiles: asks which profile to open a link from another app in. -->
+        <activity
+            android:name=".profiles.ProfileChooserActivity"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"
+            android:taskAffinity=""
+            android:exported="false"
+            android:excludeFromRecents="true" />
+
         <activity android:name=".settings.account.AuthIntentReceiverActivity"
             android:exported="false" />
 

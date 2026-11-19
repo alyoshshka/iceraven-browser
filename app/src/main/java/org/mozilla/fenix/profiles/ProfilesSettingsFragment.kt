@@ -33,6 +33,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.PreviewLightDark
+import androidx.compose.ui.unit.dp
 import androidx.fragment.app.Fragment
 import androidx.fragment.compose.content
 import mozilla.components.browser.state.action.ContainerAction
@@ -45,6 +46,7 @@ import mozilla.components.lib.state.ext.observeAsComposableState
 import mozilla.components.ui.icons.R as iconsR
 import org.mozilla.fenix.R
 import org.mozilla.fenix.compose.list.IconListItem
+import org.mozilla.fenix.compose.list.SwitchListItem
 import org.mozilla.fenix.e2e.SystemInsetsPaddedFragment
 import org.mozilla.fenix.ext.requireComponents
 import org.mozilla.fenix.ext.showToolbar
@@ -72,9 +74,22 @@ class ProfilesSettingsFragment : Fragment(), SystemInsetsPaddedFragment {
             profiles.forEach { if (known[it.contextId] != it.name) storage.setName(it.contextId, it.name) }
         }
 
+        var askForLinks by remember { mutableStateOf(storage.askForExternalLinks) }
+        var rules by remember(profiles) { mutableStateOf(storage.rules()) }
+
         FirefoxTheme {
             ProfilesSettingsScreen(
                 profiles = profiles,
+                askForLinks = askForLinks,
+                onAskForLinksChange = {
+                    storage.askForExternalLinks = it
+                    askForLinks = it
+                },
+                rules = rules,
+                onRemoveRule = {
+                    storage.removeRule(it)
+                    rules = storage.rules()
+                },
                 onSave = { existing, name, color ->
                     // Adding a container with an existing contextId replaces it (see ContainerReducer).
                     val contextId = existing?.contextId ?: UUID.randomUUID().toString()
@@ -122,16 +137,23 @@ private sealed interface ProfileDialog {
  * Profiles settings screen: an "Add profile" row followed by one row per profile.
  *
  * @param profiles The profiles to show, already sorted.
+ * @param askForLinks Whether links from other apps ask which profile to open in.
+ * @param rules Saved site rules, host to contextId (or [ProfileStorage.DEFAULT_ID]).
  * @param onSave Invoked to add (existing null) or update a profile.
  * @param onDelete Invoked after the user confirmed deleting a profile.
  */
 @Composable
 private fun ProfilesSettingsScreen(
     profiles: List<ContainerState>,
+    askForLinks: Boolean,
+    onAskForLinksChange: (Boolean) -> Unit,
+    rules: Map<String, String>,
+    onRemoveRule: (host: String) -> Unit,
     onSave: (existing: ContainerState?, name: String, color: ContainerState.Color) -> Unit,
     onDelete: (ContainerState) -> Unit,
 ) {
     var dialog by remember { mutableStateOf<ProfileDialog?>(null) }
+    val defaultName = stringResource(R.string.profiles_default_name)
 
     Surface(modifier = Modifier.fillMaxSize()) {
         LazyColumn(modifier = Modifier.fillMaxSize()) {
@@ -140,6 +162,15 @@ private fun ProfilesSettingsScreen(
                     label = stringResource(R.string.profiles_add),
                     beforeIconPainter = painterResource(iconsR.drawable.mozac_ic_plus_24),
                     onClick = { dialog = ProfileDialog.Edit(null) },
+                )
+            }
+
+            item {
+                SwitchListItem(
+                    label = stringResource(R.string.profiles_ask_for_links),
+                    checked = askForLinks,
+                    maxLabelLines = 2,
+                    onClick = onAskForLinksChange,
                 )
             }
 
@@ -153,6 +184,37 @@ private fun ProfilesSettingsScreen(
                     onEdit = { dialog = ProfileDialog.Edit(profile) },
                     onDelete = { dialog = ProfileDialog.Delete(profile) },
                 )
+            }
+
+            val ruleRows = rules.entries
+                .mapNotNull { (host, contextId) ->
+                    if (contextId == ProfileStorage.DEFAULT_ID) {
+                        Triple(host, defaultName, null)
+                    } else {
+                        profiles.firstOrNull { it.contextId == contextId }?.let { Triple(host, it.name, it.color) }
+                    }
+                }
+                .sortedBy { it.first }
+            if (ruleRows.isNotEmpty()) {
+                item {
+                    Text(
+                        text = stringResource(R.string.profiles_site_rules_title),
+                        color = MaterialTheme.colorScheme.onSurface,
+                        style = FirefoxTheme.typography.headline8,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    )
+                }
+                items(ruleRows, key = { "rule:" + it.first }) { (host, name, color) ->
+                    IconListItem(
+                        label = host,
+                        description = name,
+                        beforeIconPainter = painterResource(iconsR.drawable.mozac_ic_notification_dot_fill_24),
+                        beforeIconTint = color?.toComposeColor() ?: MaterialTheme.colorScheme.onSurfaceVariant,
+                        afterIconPainter = painterResource(iconsR.drawable.mozac_ic_delete_24),
+                        afterIconDescription = stringResource(R.string.profiles_site_rule_remove, host),
+                        onAfterIconClick = { onRemoveRule(host) },
+                    )
+                }
             }
         }
     }
@@ -258,6 +320,10 @@ private fun ProfilesEmptyState() {
 private fun ProfilesSettingsScreenPreview() {
     FirefoxTheme {
         ProfilesSettingsScreen(
+            askForLinks = true,
+            onAskForLinksChange = {},
+            rules = mapOf("example.com" to "2"),
+            onRemoveRule = {},
             profiles = listOf(
                 ContainerState("1", "Home", ContainerState.Color.GREEN, ContainerState.Icon.CIRCLE),
                 ContainerState("2", "Work", ContainerState.Color.BLUE, ContainerState.Icon.CIRCLE),

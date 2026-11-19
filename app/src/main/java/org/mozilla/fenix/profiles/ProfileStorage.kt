@@ -16,6 +16,7 @@ import java.io.File
 class ProfileStorage(context: Context) {
     private val appContext = context.applicationContext
     private val prefs: SharedPreferences = appContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+    private val rulePrefs: SharedPreferences = appContext.getSharedPreferences(RULES_PREFS, Context.MODE_PRIVATE)
     private val profilesRoot: File get() = File(appContext.filesDir, "profiles")
 
     /** Remembers the profile name so labels work for files of profiles that no longer load. */
@@ -50,16 +51,40 @@ class ProfileStorage(context: Context) {
         return parts.firstOrNull()?.takeIf { it.isNotEmpty() && it != ".." && parts.size > 1 }
     }
 
-    /** Deletes the profile's folder and its cached name. */
+    /** Deletes the profile's folder, its cached name and its site rules. */
     fun deleteProfileFiles(contextId: String) {
         File(profilesRoot, contextId).deleteRecursively()
         prefs.edit().remove("$contextId.name").apply()
+        rules().filterValues { it == contextId }.keys.forEach { removeRule(it) }
     }
+
+    /** Whether links from other apps ask which profile to open in (default on). */
+    var askForExternalLinks: Boolean
+        get() = prefs.getBoolean(KEY_ASK_LINKS, true)
+        set(value) = prefs.edit().putBoolean(KEY_ASK_LINKS, value).apply()
+
+    /** The remembered profile for [host]: [DEFAULT_ID] for the Default profile, a contextId, or null if no rule. */
+    fun ruleFor(host: String): String? = rulePrefs.getString(host.lowercase(), null)
+
+    /** Remembers that links to [host] open in [contextId] (null for Default) without asking. */
+    fun setRule(host: String, contextId: String?) {
+        rulePrefs.edit().putString(host.lowercase(), contextId ?: DEFAULT_ID).apply()
+    }
+
+    fun removeRule(host: String) {
+        rulePrefs.edit().remove(host.lowercase()).apply()
+    }
+
+    /** host -> contextId ([DEFAULT_ID] for Default) of every saved site rule. */
+    fun rules(): Map<String, String> =
+        rulePrefs.all.entries.filter { it.value is String }.associate { it.key to it.value as String }
 
     companion object {
         /** Reserved id of the default (container-less) profile; container ids are UUIDs, so it can't collide. */
         const val DEFAULT_ID = "default"
         private const val PREFS = "profiles_storage"
+        private const val RULES_PREFS = "profiles_site_rules"
+        private const val KEY_ASK_LINKS = "ask_for_external_links"
         private const val NAME_SUFFIX = ".name"
     }
 }

@@ -27,6 +27,7 @@ import org.mozilla.fenix.customtabs.FennecWebAppIntentProcessor
 import org.mozilla.fenix.home.intent.FennecBookmarkShortcutsIntentProcessor
 import org.mozilla.fenix.intent.ExternalDeepLinkIntentProcessor
 import org.mozilla.fenix.perf.lazyMonitored
+import org.mozilla.fenix.profiles.ProfileLinkIntentProcessor
 import org.mozilla.fenix.profiles.ProfileShortcutIntentProcessor
 import org.mozilla.fenix.shortcut.PasswordManagerIntentProcessor
 
@@ -95,6 +96,11 @@ class IntentProcessors(
             tabsUseCases.selectTab,
             sessionUseCases.requestDesktopSite,
         )
+    }
+
+    // Profiles: asks which profile to open links from other apps in (or applies a saved site rule).
+    val profileLinkIntentProcessor by lazyMonitored {
+        ProfileLinkIntentProcessor(context, store)
     }
 
     val webNotificationsIntentProcessor by lazyMonitored {

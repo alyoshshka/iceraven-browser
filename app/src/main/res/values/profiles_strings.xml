@@ -32,6 +32,13 @@
     <string name="profiles_open_in_profile" translatable="false">Open in profile</string>
     <string name="profiles_manage" translatable="false">Manage profiles</string>
     <string name="profiles_shortcut_label" translatable="false">%1$s (%2$s)</string>
+    <!-- Links from other apps -->
+    <string name="profiles_open_link_in" translatable="false">Open link in</string>
+    <string name="profiles_open_link_confirm" translatable="false">Open</string>
+    <string name="profiles_always_open_in_profile" translatable="false">Always open %1$s in this profile</string>
+    <string name="profiles_ask_for_links" translatable="false">Ask which profile for links from other apps</string>
+    <string name="profiles_site_rules_title" translatable="false">Site rules</string>
+    <string name="profiles_site_rule_remove" translatable="false">Remove rule for %1$s</string>
     <!-- File picker -->
     <string name="profiles_upload_title" translatable="false">Upload from</string>
     <string name="profiles_upload_raven_files" translatable="false">Raven files</string>

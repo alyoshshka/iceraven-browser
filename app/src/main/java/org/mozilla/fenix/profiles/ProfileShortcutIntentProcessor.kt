@@ -31,6 +31,12 @@ const val EXTRA_PROFILE_CONTEXT_ID = "app.ravenprofiles.extra.CONTEXT_ID"
 /** Profiles: intent extra (boolean) telling whether a home screen shortcut opens the desktop site. */
 const val EXTRA_PROFILE_DESKTOP = "app.ravenprofiles.extra.DESKTOP"
 
+/** Profiles: intent extra (boolean): open in a new tab instead of reusing an open tab of the same host. */
+const val EXTRA_PROFILE_NEW_TAB = "app.ravenprofiles.extra.NEW_TAB"
+
+/** Profiles: intent extra (boolean): the profile for this link is already decided, don't ask again. */
+const val EXTRA_PROFILE_SKIP_ASK = "app.ravenprofiles.extra.SKIP_ASK"
+
 /** Builds the extras stored on a home screen shortcut created from [tab]. */
 fun profileShortcutExtras(tab: SessionState): Bundle = Bundle().apply {
     tab.contextId?.let { putString(EXTRA_PROFILE_CONTEXT_ID, it) }
@@ -64,7 +70,8 @@ class ProfileShortcutIntentProcessor(
         if (contextId != null && containers.isNotEmpty() && !containers.containsKey(contextId)) return false
         val desktop = intent.getBooleanExtra(EXTRA_PROFILE_DESKTOP, false)
 
-        val existing = findExistingTab(contextId, host)
+        val newTab = intent.getBooleanExtra(EXTRA_PROFILE_NEW_TAB, false)
+        val existing = if (newTab) null else findExistingTab(contextId, host)
         val tabId =
             if (existing != null) {
                 selectTab(existing.id)
@@ -79,7 +86,7 @@ class ProfileShortcutIntentProcessor(
                     contextId = contextId,
                 ).also {
                     if (desktop) requestDesktopSite(true, it)
-                    if (!store.state.restoreComplete) reuseRestoredTabOnceRestored(it, contextId, host)
+                    if (!store.state.restoreComplete && !newTab) reuseRestoredTabOnceRestored(it, contextId, host)
                 }
             }
 
