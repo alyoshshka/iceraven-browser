@@ -26,7 +26,7 @@ git -C android-components apply < automation/iceraven/patches/toolbar.patch
 
 # Profiles feature (see docs/profiles.md)
 for p in automation/iceraven/patches/profiles/*.patch; do
-  git -C android-components apply < "$p"
+  git -C android-components apply < "$p" || { echo "failed to apply $p" >&2; exit 1; }
 done
 
 python automation/iceraven/toolkit/crashreporter/generate_crash_reporter_sources.py
