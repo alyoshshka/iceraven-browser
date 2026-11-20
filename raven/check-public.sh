@@ -12,7 +12,7 @@
 #   - /home/<user>, /Users/<user> paths
 #   - private LAN addresses (192.168.x.x, 10.x.x.x, 172.16-31.x.x)
 #   - private key blocks
-#   - author/committer identities other than a GitHub noreply identity; commit messages with local paths / LAN IPs
+#   - author/committer identities other than a GitHub noreply identity (except GitHub's own PR merge commit committer); commit messages with local paths / LAN IPs
 # Private deny-list (optional): $RAVEN_DENYLIST = path to a file OUTSIDE the repo with one extended-regex per line
 #   (names, hostnames, usernames...). Blank lines and lines starting with # are ignored.
 set -uo pipefail
@@ -67,7 +67,16 @@ UP_TAGS=$(git tag -l 'iceraven-*')
 # shellcheck disable=SC2086
 OURS=$(git rev-list HEAD --not $UP_TAGS)
 echo "our commits: $(printf '%s\n' "$OURS" | grep -c .)"
-bad=$(for c in $OURS; do git log -1 --format='%an <%ae>%n%cn <%ce>' "$c"; done | sort -u | grep -vE '<[0-9]+\+[A-Za-z0-9-]+(\[bot\])?@users\.noreply\.github\.com>$' || true)
+# The merge commit GitHub creates for a pull request (checked out by CI) is committed by "GitHub <noreply@github.com>";
+# that exact committer is accepted on merge commits only. Its author is still checked.
+ident() {
+  local c=$1 committer
+  git log -1 --format='%an <%ae>' "$c"
+  committer=$(git log -1 --format='%cn <%ce>' "$c")
+  if [ "$committer" = 'GitHub <noreply@github.com>' ] && [ "$(git rev-list --parents -n1 "$c" | wc -w)" -gt 2 ]; then return 0; fi
+  echo "$committer"
+}
+bad=$(for c in $OURS; do ident "$c"; done | sort -u | grep -vE '<[0-9]+\+[A-Za-z0-9-]+(\[bot\])?@users\.noreply\.github\.com>$' || true)
 if [ -n "$bad" ]; then echo "HIT [commit identities]:"; echo "$bad" | sed 's/^/   /'; hits=$((hits + 1)); else echo "ok  [commit identities]: 0"; fi
 msgs=$(for c in $OURS; do git log -1 --format=%B "$c"; done | grep -nE '/home/|/Users/|192\.168\.' || true)
 if [ -n "$msgs" ]; then echo "HIT [commit messages]:"; echo "$msgs" | sed 's/^/   /'; hits=$((hits + 1)); else echo "ok  [commit messages]: 0"; fi

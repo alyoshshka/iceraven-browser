@@ -5,13 +5,16 @@
 #
 # Checks: install+launch (incl. first-run onboarding), create profile "Work", cookie isolation (httpbin.org),
 # app-only downloads, external-link chooser ("Open link in": Always rule, site-rule removal, setting off),
-# no crash in logcat. Page content is read from the uiautomator tree (GeckoView exposes it) via httpbin /cookies. Every check prints PASS/FAIL; exit status is non-zero if any failed.
+# no crash in logcat. Page content is read via a small httpbin-hosted page that renders the cookie jar as text AND mirrors it
+# into the URL fragment (shown in the native toolbar's content-description), so it works even when GeckoView does not expose page
+# text to uiautomator (it did on Waydroid, not on the CI emulator). Every check prints PASS/FAIL; exit status is non-zero if any failed.
 # Output (screenshots, UI dumps, logcat) goes to $RAVEN_E2E_OUT (default ./e2e-out).
 #
 # Env:
 #   RAVEN_E2E_WIPE=1   uninstall the app first (default in CI) so every run starts from a fresh install.
 #                      Without it an existing install is updated in place and keeps its data/profiles.
 #   RAVEN_E2E_LINK_CHOOSER=1  also run the external-link chooser checks.
+#   RAVEN_E2E_DISABLE_OTHER_BROWSERS=1  `pm disable-user` Chrome etc. so external links cannot land in another browser (CI).
 #   RAVEN_E2E_USE_ROOT=1      on rooted emulators, open Work tabs via a contextId intent instead of the menu.
 #
 # Tested layouts: any screen size/density; text is matched from `uiautomator dump`, never by coordinates
@@ -185,6 +188,19 @@ dismiss_noise() {
   done
 }
 
+# Wait (up to $1 s) for the browser UI, tapping through first-run onboarding on the way. On a cold emulator the
+# onboarding appears many seconds after launch (the first dump can be a blank window), so one early pass is not enough.
+wait_browser_ready() {
+  local end=$((SECONDS + ${1:-60})) xy ok=0
+  while [ $SECONDS -lt "$end" ]; do
+    dump
+    if xy=$(ui_query center '^(Continue|Not now|Skip|Maybe later|No thanks|Cancel)$'); then tap_xy ${xy}; ok=0; sleep 2; continue; fi
+    if ui_query has 'Search or enter address|^New tab$|^Menu$|Tabs Open'; then ok=$((ok + 1)); [ "$ok" -ge 2 ] && return 0; else ok=0; fi
+    sleep 2
+  done
+  return 1
+}
+
 # ---- intents -------------------------------------------------------------------------------------
 view_default() { # open URL in a Default-profile tab (never ask which profile)
   sh_ am start -a android.intent.action.VIEW -d "$1" --ez "$EX_SKIP" true -n "$PKG/$IRA" >/dev/null
@@ -211,13 +227,19 @@ print(m.group(1) if m else "")'
 }
 
 # ---- page content --------------------------------------------------------------------------------
-# GeckoView exposes page text to uiautomator as a node (verified on Waydroid), so we read the JSON that
-# https://httpbin.org/cookies returns: {"cookies": {"who": "<value>"}}. READ_URL carries a nonce so every read
-# is a fresh navigation. read_page_value prints "who=<value>" or "none" (empty cookie jar).
-READ_BASE="https://httpbin.org/cookies"
+# READ_BASE is a tiny page served by httpbin.org/base64/<urlsafe b64 html> (same origin as the cookies, so it can read
+# document.cookie). It (1) writes {"cookies":{"who":"<v>"}} into the body (readable from the a11y tree where GeckoView exposes
+# page text, e.g. Waydroid), (2) sets document.title, and (3) replaceState()s the URL fragment to #ravenwho_<v>, which shows
+# up in the native toolbar's content-description (works on the CI emulator, where page text is not exposed).
+# read_page_value prints "who=<value>" or "none" (empty cookie jar). A nonce in the HTML makes every read a fresh navigation.
 nonce() { echo "n$RANDOM$RANDOM"; }
-read_url() { echo "$READ_BASE?$(nonce)"; }
-cookie_in_ui() { # prints who=<v> / none if a /cookies JSON body is on screen
+read_url() {
+  local html b64
+  html="<body><script>var m=document.cookie.match(/(?:^|; )who=([^;]*)/),v=m?m[1]:'',x=v||'none';document.title='RAVENWHO_'+x;history.replaceState(null,'','#ravenwho_'+x);document.body.textContent=JSON.stringify({cookies:v?{who:v}:{}});</script><!--$(nonce)-->"
+  b64=$(printf '%s' "$html" | base64 -w0 | tr '+/' '-_')
+  echo "https://httpbin.org/base64/$b64"
+}
+cookie_in_ui() { # prints who=<v> / none if the page value is on screen (body JSON, else URL fragment marker)
   python3 -I - "$UI" <<'PY'
 import re, sys
 import xml.etree.ElementTree as ET
@@ -225,25 +247,34 @@ try:
     root = ET.parse(sys.argv[1]).getroot()
 except Exception:
     sys.exit(1)
+vals = []
 for n in root.iter("node"):
-    t = n.get("text", "")
+    vals += [n.get("text", ""), n.get("content-desc", "")]
+for t in vals:
     if '"cookies"' in t:
         m = re.search(r'"who":\s*"([^"]*)"', t)
         print("who=" + m.group(1) if m else "none"); sys.exit(0)
+for t in vals:
+    m = re.search(r'#ravenwho_([A-Za-z0-9_.%-]+)', t)
+    if m:
+        v = m.group(1)
+        print("none" if v == "none" else "who=" + v); sys.exit(0)
 sys.exit(1)
 PY
 }
-read_page_value() { # poll up to $1 s for the cookie JSON of the selected tab
-  local end=$((SECONDS + ${1:-40})) v
+read_page_value() { # poll up to $1 s for the page value of the selected tab
+  local end=$((SECONDS + ${1:-40})) v xy
   while [ $SECONDS -lt "$end" ]; do
     dump
     v=$(cookie_in_ui) && { echo "$v"; return 0; }
+    # first-run onboarding can still pop up late on a cold emulator
+    if xy=$(ui_query center '^(Continue|Not now|Skip)$'); then tap_xy ${xy}; fi
     sleep 2
   done
   shot page-not-readable
   return 1
 }
-fire_read() { # <default|ctx-id|-> : open a fresh cookie page, wait for the load, print the value
+fire_read() { # <default|ctx-id|-> : open a fresh read page, wait for the load, print the value
   local url; url=$(read_url)
   if [ "$1" = default ]; then view_default "$url"; else view_ctx "$url" "$1"; fi
   sleep 4; read_page_value 40
@@ -275,7 +306,7 @@ check_install_launch() {
   local end=$((SECONDS + 40))
   while [ $SECONDS -lt "$end" ]; do
     if sh_ dumpsys window | tr -d '\r' | grep -E 'mCurrentFocus|mFocusedApp' | grep -q "$PKG"; then
-      sleep 3; dismiss_noise; shot launched; pass "$name"; return 0
+      sleep 3; dismiss_noise; wait_browser_ready 60 || log "browser UI not confirmed after launch"; shot launched; pass "$name"; return 0
     fi
     sleep 1
   done
@@ -320,7 +351,7 @@ check_cookie_isolation() {
   WORK_CTX=$(discover_ctx)
   # 1. Default: set the cookie server-side (the redirect lands on /cookies, which shows it).
   view_default "https://httpbin.org/cookies/set?who=default"; sleep 6
-  v=$(read_page_value 45) || { fail "$name" "page content not observable in the a11y tree"; return 1; }
+  v=$(fire_read default) || { fail "$name" "page value not observable (neither page text nor URL marker)"; return 1; }
   [ "$v" = 'who=default' ] || { fail "$name" "Default should have who=default, saw $v"; return 1; }
   log "Default sees $v"
   # 2. Work: set who=work. With a known contextId use a shortcut-style intent; otherwise temporarily set it in
@@ -347,20 +378,28 @@ check_cookie_isolation() {
 }
 
 check_downloads_app_only() {
-  local name='downloads stay app-only (not in /sdcard/Download)'
+  local name='downloads stay app-only (not in /sdcard/Download)' i found=0
   sh_ 'rm -f /sdcard/Download/e2e.txt*' 2>/dev/null
   view_default 'https://httpbin.org/response-headers?Content-Disposition=attachment%3B%20filename%3De2e.txt'
-  if wait_for_text '^Download$' 25; then tap_text '^Download$' 5; else log "no download prompt; assuming it started"; fi
-  sleep 10; shot download
+  # Fenix asks "Download" / "Cancel" in a bottom sheet; tap it as soon as it shows (up to 25 s).
+  if wait_for_text '^Download$' 25; then tap_text '^Download$' 5; else log "no download prompt within 25 s (may have started directly)"; fi
+  shot download
+  # Wait up to ~90 s for the file to be listed in the in-app Downloads screen (Menu > Downloads), re-checking.
+  for i in 1 2 3 4 5 6; do
+    sh_ am start -n "$PKG/$HOME_ACT" >/dev/null; sleep 2
+    if open_menu && tap_text '^Downloads$' 10 && wait_for_text 'e2e\.txt' 12; then found=1; break; fi
+    shot downloads-retry
+    back; back; sleep 8
+  done
   if sh_ 'ls /sdcard/Download 2>/dev/null' | tr -d '\r' | grep -q '^e2e\.txt'; then
     fail "$name" "e2e.txt leaked into /sdcard/Download"; return 1
   fi
-  # positive proof that the download happened: it is listed in the in-app Downloads screen
-  sh_ am start -n "$PKG/$HOME_ACT" >/dev/null; sleep 2
-  if open_menu && tap_text '^Downloads$' 10 && wait_for_text 'e2e\.txt' 20; then
+  if [ "$found" = 1 ]; then
+    # let it finish: a completed item shows no "Downloading" / progress state
+    wait_gone 'Downloading|Paused|Failed' 30 || true
     shot downloads-list; pass "$name"; back
   else
-    fail "$name" "download not found in the in-app Downloads list (cannot prove it happened)"
+    fail "$name" "download not found in the in-app Downloads list after ~90 s (cannot prove it happened)"
   fi
 }
 
@@ -443,6 +482,12 @@ sh_ input keyevent KEYCODE_WAKEUP; sh_ wm dismiss-keyguard >/dev/null 2>&1 || tr
 for k in window_animation_scale transition_animation_scale animator_duration_scale; do sh_ settings put global "$k" 0 >/dev/null 2>&1 || true; done
 # Best effort: ask Android to expose accessibility content (helps if GeckoView only builds its tree then).
 sh_ settings put secure accessibility_enabled 1 >/dev/null 2>&1 || true
+if [ "${RAVEN_E2E_DISABLE_OTHER_BROWSERS:-0}" = 1 ]; then
+  # CI emulator images ship Chrome, which would catch external VIEW intents (FirstRunActivity).
+  for p in com.android.chrome com.google.android.apps.chrome com.chrome.beta; do
+    if sh_ pm path "$p" 2>/dev/null | grep -q package:; then log "disabling $p"; sh_ pm disable-user --user 0 "$p" >/dev/null 2>&1 || sh_ pm disable "$p" >/dev/null 2>&1 || true; fi
+  done
+fi
 A logcat -c
 
 check_install_launch && {
