@@ -49,6 +49,9 @@ internal sealed class BookmarksListMenuAction : BookmarksAction {
 
         data class OpenInPrivateTabClicked(val bookmark: BookmarkItem.Bookmark) : Bookmark()
 
+        // Profiles: "Open in profile…".
+        data class OpenInProfileClicked(val bookmark: BookmarkItem.Bookmark) : Bookmark()
+
         data class DeleteClicked(val bookmark: BookmarkItem.Bookmark) : Bookmark()
 
         data class MoveClicked(val bookmark: BookmarkItem.Bookmark) : Bookmark()

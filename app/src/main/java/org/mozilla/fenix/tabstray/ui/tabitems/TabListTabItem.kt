@@ -47,7 +47,7 @@ import org.mozilla.fenix.compose.TabThumbnail
 import org.mozilla.fenix.compose.rememberSwipeToDismissBoxState
 import org.mozilla.fenix.compose.swipeToDismissFade
 import org.mozilla.fenix.ext.toShortUrl
-import org.mozilla.fenix.profiles.ProfileDot
+import org.mozilla.fenix.profiles.ProfileTabIcon
 import org.mozilla.fenix.tabstray.TabsTrayTestTag
 import org.mozilla.fenix.tabstray.data.TabsTrayItem
 import org.mozilla.fenix.tabstray.data.createTab
@@ -169,7 +169,7 @@ private fun TabContent(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 // Profiles: dot at the start of the URL line.
                 tab.profileColor?.let {
-                    ProfileDot(color = Color(it))
+                    ProfileTabIcon(icon = tab.profileIcon, color = Color(it))
                     Spacer(modifier = Modifier.width(FirefoxTheme.layout.space.static100))
                 }
 

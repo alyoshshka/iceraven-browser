@@ -23,6 +23,7 @@ import org.mozilla.fenix.AppRequestInterceptor.Companion.ERROR_PAGE_ACTION_SCHEM
 import org.mozilla.fenix.GleanMetrics.ErrorPage
 import org.mozilla.fenix.ext.components
 import org.mozilla.fenix.ext.isOnline
+import org.mozilla.fenix.profiles.ProfileSiteRouter
 
 class AppRequestInterceptor(
     private val context: Context,
@@ -30,6 +31,8 @@ class AppRequestInterceptor(
 ) : RequestInterceptor {
 
     private var navController: WeakReference<NavController>? = null
+
+    private val siteRouter by lazy { ProfileSiteRouter(context) }
 
     private val interceptAboutHomeAllowList = listOf(R.id.browserFragment)
 
@@ -56,6 +59,11 @@ class AppRequestInterceptor(
         if (interceptAboutHomeRequest(uri)) {
             // Let the original request proceed.
             return null
+        }
+
+        // Profiles: "always open in" rules and limited profiles apply to every top-level navigation.
+        siteRouter.intercept(engineSession, uri, lastUri, isSubframeRequest)?.let {
+            return it
         }
 
         val services = context.components.services

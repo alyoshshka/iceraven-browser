@@ -41,6 +41,7 @@ import org.mozilla.fenix.ext.nav
 import org.mozilla.fenix.ext.requireComponents
 import org.mozilla.fenix.pbmlock.registerForVerification
 import org.mozilla.fenix.pbmlock.verifyUser
+import org.mozilla.fenix.profiles.OpenInProfileDialogFragment
 import org.mozilla.fenix.search.BrowserToolbarSearchMiddleware
 import org.mozilla.fenix.search.BrowserToolbarSearchStatusSyncMiddleware
 import org.mozilla.fenix.tabstray.redux.state.Page
@@ -177,6 +178,10 @@ class BookmarkFragment : Fragment(), SystemInsetsPaddedFragment {
                                         )
                                     },
                                     showTabsTray = ::showTabTray,
+                                    // Profiles
+                                    openInProfile = { url ->
+                                        OpenInProfileDialogFragment.showForUrl(parentFragmentManager, url)
+                                    },
                                     resolveFolderTitle = {
                                         friendlyRootTitle(
                                             context = requireContext(),

@@ -86,7 +86,7 @@ import org.mozilla.fenix.components.components
 import org.mozilla.fenix.compose.Favicon
 import org.mozilla.fenix.compose.HorizontalFadingEdgeBox
 import org.mozilla.fenix.compose.ext.isItemPartiallyVisible
-import org.mozilla.fenix.profiles.ProfileDot
+import org.mozilla.fenix.profiles.ProfileTabIcon
 import org.mozilla.fenix.tabstray.browser.compose.ReorderableDragItemContainer
 import org.mozilla.fenix.tabstray.browser.compose.createListReorderState
 import org.mozilla.fenix.tabstray.browser.compose.detectListPressAndDrag
@@ -465,7 +465,7 @@ private fun TabItem(
 
                 // Profiles: dot before the title.
                 state.profileColor?.let {
-                    ProfileDot(color = Color(it))
+                    ProfileTabIcon(icon = state.profileIcon, color = Color(it))
                     Spacer(modifier = Modifier.size(6.dp))
                 }
 

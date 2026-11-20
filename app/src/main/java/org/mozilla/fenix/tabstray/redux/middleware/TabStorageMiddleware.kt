@@ -30,6 +30,7 @@ import mozilla.components.support.base.log.logger.Logger
 import mozilla.components.support.utils.DateTimeProvider
 import mozilla.components.support.utils.DefaultDateTimeProvider
 import org.mozilla.fenix.components.usecases.FenixBrowserUseCases
+import org.mozilla.fenix.profiles.ProfileStorage
 import org.mozilla.fenix.profiles.toArgb
 import org.mozilla.fenix.tabstray.data.TabData
 import org.mozilla.fenix.tabstray.data.TabGroupTheme
@@ -142,6 +143,26 @@ class TabStorageMiddleware(
         }
 
         next(action)
+
+        if (action is TabsTrayAction.ProfileFilterSelected) {
+            refreshTabData(store)
+        }
+    }
+
+    /** Profiles: rebuilds the tab items from the latest tab data, for a changed profile filter. */
+    private fun refreshTabData(store: Store<TabsTrayState, TabsTrayAction>) {
+        val data = combinedDataFlow.value ?: return
+        scope.launch {
+            val update = transformTabData(
+                tabs = data.tabs,
+                selectedTabId = data.selectedTabId,
+                tabGroups = data.tabGroups,
+                tabGroupAssignments = data.tabGroupAssignments,
+                containers = data.containers,
+                selectedProfile = store.state.selectedProfile,
+            )
+            mainScope.launch { store.dispatch(TabDataUpdateReceived(tabStorageUpdate = update)) }
+        }
     }
 
     private fun processAction(
@@ -161,6 +182,7 @@ class TabStorageMiddleware(
                                     tabGroups = data.tabGroups,
                                     tabGroupAssignments = data.tabGroupAssignments,
                                     containers = data.containers,
+                                    selectedProfile = store.state.selectedProfile,
                                 )
 
                             mainScope.launch {
@@ -534,7 +556,15 @@ class TabStorageMiddleware(
         tabGroups: List<TabGroup>,
         tabGroupAssignments: Map<TabItemId, String>, // tab ID -> tab group ID
         containers: Map<String, ContainerState> = emptyMap(),
+        selectedProfile: String? = null,
     ): TabStorageUpdate {
+        // Profiles: the profiles owning normal tabs; the filter only applies while its profile still has tabs.
+        val profileIds = tabs.filter { !it.content.private }
+            .map { it.contextId ?: ProfileStorage.DEFAULT_ID }
+            .distinct()
+            .sorted()
+        val profileFilter = selectedProfile?.takeIf { it in profileIds }
+
         val normalItems: MutableList<Any> = mutableListOf()
         val inactiveTabs: MutableList<TabsTrayItem.Tab> = mutableListOf()
         val privateTabs: MutableList<TabsTrayItem> = mutableListOf()
@@ -550,9 +580,20 @@ class TabStorageMiddleware(
                     tab = tab,
                     isFocused = tab.id == selectedTabId,
                     profileColor = tab.contextId?.let { containers[it]?.color?.toArgb() },
+                    profileIcon = tab.contextId?.let { containers[it]?.icon },
                 )
             val assignedGroupId = tabGroupAssignments[displayTab.id]
             val assignedGroup = transformedTabGroups[assignedGroupId]
+
+            // Profiles: tabs of other profiles are left out of the lists, but still counted.
+            if (profileFilter != null && !displayTab.private &&
+                (tab.contextId ?: ProfileStorage.DEFAULT_ID) != profileFilter
+            ) {
+                val closedGroup = assignedGroup?.metaData?.closed == true
+                val inactive = assignedGroup == null && inactiveTabsEnabled && displayTab.inactive
+                if (!closedGroup && !inactive) normalTabCount++
+                return@forEach
+            }
 
             when {
                 assignedGroup != null -> {
@@ -604,6 +645,7 @@ class TabStorageMiddleware(
             privateTabs = privateTabs,
             selectedPrivateItemIndex = selectedPrivateTabIndex,
             tabGroups = displayTabGroups,
+            profileIds = profileIds,
         )
     }
 
