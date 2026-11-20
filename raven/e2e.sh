@@ -136,6 +136,11 @@ PY
 # Looks at the current $UI dump; taps "Wait" on ANR dialogs, else closes the dialog. Returns 0 if one was handled.
 dismiss_system_dialogs() {
   local xy
+  # First-run onboarding can appear long after launch on a slow emulator; tap through it wherever we are waiting.
+  if ui_query has 'Welcome to|default browser|Set as default' \
+     && xy=$(ui_query center '^(Continue|Not now|Skip|Maybe later|No thanks|Cancel)$'); then
+    log "onboarding on screen; dismissing"; tap_xy ${xy}; sleep 2; return 0
+  fi
   ui_query has "isn.t responding|keeps stopping|has stopped" || return 1
   log "system dialog on screen; dismissing"
   if xy=$(ui_query center '^Wait$'); then :; elif xy=$(ui_query center '^(Close app|OK|Close)$'); then :; else return 1; fi
@@ -221,7 +226,7 @@ dismiss_noise() {
 # Wait (up to $1 s) for the browser UI, tapping through first-run onboarding on the way. On a cold emulator the
 # onboarding appears many seconds after launch (the first dump can be a blank window), so one early pass is not enough.
 wait_browser_ready() {
-  local end=$((SECONDS + ${1:-60})) xy ok=0
+  local end=$((SECONDS + ${1:-120})) xy ok=0
   while [ $SECONDS -lt "$end" ]; do
     dump
     dismiss_system_dialogs && continue
