@@ -12,6 +12,7 @@
 #   RAVEN_E2E_WIPE=1   uninstall the app first (default in CI) so every run starts from a fresh install.
 #                      Without it an existing install is updated in place and keeps its data/profiles.
 #   RAVEN_E2E_LINK_CHOOSER=1  also run the external-link chooser checks.
+#   RAVEN_E2E_USE_ROOT=1      on rooted emulators, open Work tabs via a contextId intent instead of the menu.
 #
 # Tested layouts: any screen size/density; text is matched from `uiautomator dump`, never by coordinates
 # (except swipe gestures for scrolling, derived from `wm size`).
@@ -196,6 +197,8 @@ view_ctx() { # <url> <contextId>
 # on a normal phone). Prints the id or nothing.
 discover_ctx() {
   local xml
+  # The menu path ("Open in profile") is the one validated on real devices; the contextId shortcut is opt-in.
+  [ "${RAVEN_E2E_USE_ROOT:-0}" = 1 ] || return 0
   # `adb root` restarts adbd (and drops the connection on some hosts), so only do it where the build allows it.
   if [ "$(sh_ getprop ro.debuggable | tr -d '\r')" = 1 ] && [ "$(sh_ id -u | tr -d '\r')" != 0 ]; then
     A root >/dev/null 2>&1; A wait-for-device; sleep 2

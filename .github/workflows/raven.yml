@@ -112,6 +112,7 @@ jobs:
         env:
           RAVEN_E2E_OUT: ${{ github.workspace }}/e2e-out
           RAVEN_E2E_WIPE: '1'
+          RAVEN_E2E_LINK_CHOOSER: '1'
       - uses: actions/upload-artifact@v5
         if: always()
         with:
