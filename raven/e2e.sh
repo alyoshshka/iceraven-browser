@@ -4,7 +4,9 @@
 #   raven/e2e.sh <apk> <adb-serial>        (serial may also come from $ANDROID_SERIAL / $ADB_SERIAL)
 #
 # Checks: install+launch (incl. first-run onboarding), create profile "Work", cookie isolation, app-only downloads,
-# external-link chooser ("Open link in": Always rule, site-rule removal, setting off), no crash in logcat.
+# external-link chooser ("Open link in": Always rule, site-rule removal, setting off), profile UX (toolbar chip,
+# chip dialog "Always open <host> in this profile", "New tab in profile…" from the tab counter, tab tray profile filter),
+# no crash in logcat.
 # Web content comes from a tiny local server (raven/e2e-server.py) that this script starts on the machine running adb and
 # kills on exit. It serves raven/e2e-page.html (text/html) and /e2e.txt (attachment). The device reaches it at $RAVEN_E2E_HOST.
 # The page mirrors the cookie `who` into document.title, the URL fragment (#who_<v>, shown in the native toolbar) and the body, so
@@ -20,6 +22,9 @@
 #   RAVEN_E2E_HOST=<host>  address of the machine running this script as seen from the device (default 10.0.2.2, the Android
 #                      emulator's alias for the host loopback; use the host's LAN/bridge address for a real device or Waydroid).
 #   RAVEN_E2E_SETTLE=<s>  after boot, wait this long for the launcher to settle (CI sets 20; avoids "isn't responding" ANRs).
+#   RAVEN_E2E_PKG=<id>  application id of the APK under test (default app.ravenprofiles; the debug build uses
+#                      io.github.forkmaintainers.iceraven.debug). The intent extras are fixed strings, not package-based.
+#   RAVEN_E2E_SCHEME=<s>  deep-link scheme for settings (default iceraven, iceraven-debug when the package ends in .debug).
 #   RAVEN_E2E_USE_ROOT=1      on rooted emulators, open Work tabs via a contextId intent instead of the menu.
 #
 # Tested layouts: any screen size/density; text is matched from `uiautomator dump`, never by coordinates
@@ -29,9 +34,11 @@ set -uo pipefail
 APK=${1:?usage: e2e.sh <apk> <adb-serial>}
 SERIAL=${2:-${ANDROID_SERIAL:-${ADB_SERIAL:-}}}
 [ -n "$SERIAL" ] || { echo "adb serial required (arg 2 or \$ANDROID_SERIAL)" >&2; exit 2; }
-PKG=app.ravenprofiles
+PKG=${RAVEN_E2E_PKG:-app.ravenprofiles}   # e.g. io.github.forkmaintainers.iceraven.debug for the debug build
 HOME_ACT=org.mozilla.fenix.HomeActivity
 IRA=org.mozilla.fenix.IntentReceiverActivity
+# Deep-link scheme of the build: the debug build answers to iceraven-debug (so it can sit next to the release app).
+case "$PKG" in *.debug) SCHEME=${RAVEN_E2E_SCHEME:-iceraven-debug} ;; *) SCHEME=${RAVEN_E2E_SCHEME:-iceraven} ;; esac
 EX_CTX=app.ravenprofiles.extra.CONTEXT_ID
 EX_DESK=app.ravenprofiles.extra.DESKTOP
 EX_SKIP=app.ravenprofiles.extra.SKIP_ASK
@@ -210,6 +217,8 @@ read_size() {
 }
 swipe_up() { sh_ input swipe $((SCREEN_W / 2)) $((SCREEN_H * 3 / 4)) $((SCREEN_W / 2)) $((SCREEN_H / 4)) 300; sleep 1; }
 
+swipe_down() { sh_ input swipe $((SCREEN_W / 2)) $((SCREEN_H / 4)) $((SCREEN_W / 2)) $((SCREEN_H * 3 / 4)) 300; sleep 1; }
+
 tap_text_scroll() { # <regex>: tap, scrolling down up to 6 times to find it
   local i
   for i in 0 1 2 3 4 5 6; do
@@ -341,7 +350,7 @@ fire_read() { # <default|ctx-id|-> : open a fresh read page, wait for the load, 
 open_menu() { tap_text '^(Main )?[Mm]enu$|^Menu$|^More options$' 15; }
 
 open_settings() {
-  sh_ am start -a android.intent.action.VIEW -d iceraven://settings -n "$PKG/$IRA" >/dev/null
+  sh_ am start -a android.intent.action.VIEW -d "$SCHEME://settings" -n "$PKG/$IRA" >/dev/null
   wait_for_text '^Profiles$|^Settings$' 15 && return 0
   # fallback: menu -> Settings
   sh_ am start -n "$PKG/$HOME_ACT" >/dev/null; sleep 2
@@ -354,7 +363,7 @@ check_install_launch() {
   if [ "${RAVEN_E2E_WIPE:-${CI:-0}}" != 0 ] && [ "${RAVEN_E2E_WIPE:-${CI:-0}}" != false ]; then
     sh_ pm uninstall "$PKG" >/dev/null 2>&1 || true
   fi
-  if ! apk_out=$(A install -r -d -g "$APK" 2>&1); then
+  if ! apk_out=$(A install -r -d -t -g "$APK" 2>&1); then
     fail "$name" "install: $(echo "$apk_out" | tail -1); signature mismatch with an installed copy? set RAVEN_E2E_WIPE=1"; return 1
   fi
   sh_ pm grant "$PKG" android.permission.POST_NOTIFICATIONS >/dev/null 2>&1 || true
@@ -383,7 +392,11 @@ check_create_profile() {
   xy=$(ui_query edit '') || xy=$(ui_query center 'Profile name') || { fail "$name" "no name field"; return 1; }
   tap_xy ${xy}; sleep 1
   sh_ input text Work; sleep 1
-  tap_text '^Save$' 10 || { fail "$name" "no Save button"; return 1; }
+  # The dialog opens with the soft keyboard up and now has colour and icon pickers, so Save sits behind the keyboard (a tap
+  # there would hit a key/suggestion). dumpsys cannot tell reliably whether the keyboard is up, but it always is here:
+  # one Back closes just the keyboard. Then scroll to Save in case the dialog is taller than a small screen.
+  back; wait_for_text 'Profile name' 10 || { fail "$name" "dialog closed instead of the keyboard"; return 1; }
+  tap_text_scroll '^Save$' || { fail "$name" "no Save button"; return 1; }
   if wait_for_text '^Work$' 15; then shot profile-created; pass "$name"; else fail "$name" "Work not listed after save"; fi
 }
 
@@ -474,6 +487,15 @@ view_external() {
   sh_ am start -a android.intent.action.VIEW -d "'$url'" -p "$PKG" >/dev/null 2>&1
 }
 
+# Settings > Profiles > Work: opens the profile editor (it opens with the keyboard up, so one Back closes just that).
+open_work_editor() {
+  if ! has_text '^Add profile$'; then
+    open_settings && tap_text_scroll '^Profiles$' && wait_for_text '^Add profile$' 15 || return 1
+  fi
+  tap_text '^Work$' 10 && wait_for_text '^Edit profile$' 10 || return 1
+  back; wait_for_text '^Edit profile$' 10
+}
+
 check_link_chooser() {
   if [ "${RAVEN_E2E_LINK_CHOOSER:-0}" != 1 ]; then echo "SKIP: external-link chooser"; return 0; fi
   local name v
@@ -501,15 +523,18 @@ check_link_chooser() {
   if [ "$v" = 'who=work' ]; then pass "$name"; else fail "$name" "expected who=work, saw $v"; fi
   dump; if ui_query has '^Open link in$'; then fail "$name" "dialog shown late"; return 1; fi
 
-  name='Settings > Profiles lists the site rule; removing it works'
-  open_settings && tap_text_scroll '^Profiles$' && wait_for_text '^Site rules$' 15 \
-    || { fail "$name" "Profiles screen / Site rules section not shown"; return 1; }
-  if ! has_text "^$host$"; then fail "$name" "no rule for $host listed"; return 1; fi
+  name='Edit profile "Work" lists the site rule; removing it works'
+  open_work_editor || { fail "$name" "could not open the Work profile editor"; return 1; }
+  tap_text_scroll '^Sites that always open here$' >/dev/null  # scrolls the dialog to the list; the tap itself is harmless
+  if ! has_text "^$host\$"; then fail "$name" "no rule for $host listed"; return 1; fi
   shot site-rule
-  tap_text "^Remove rule for $host$" 10 || { fail "$name" "no remove button"; return 1; }
-  sleep 1; dump
-  if ui_query has '^(Remove|Delete|OK|Yes)$'; then tap_text '^(Remove|Delete|OK|Yes)$' 5; sleep 1; fi
-  if wait_gone "^$host$" 10; then pass "$name"; else fail "$name" "rule still listed after removal"; return 1; fi
+  tap_text_scroll "^Remove rule for $host\$" || { fail "$name" "no remove button"; return 1; }
+  tap_text_scroll '^Save$' || { fail "$name" "no Save button"; return 1; }
+  wait_for_text '^Add profile$' 10 || { fail "$name" "editor did not close"; return 1; }
+  # reopen: the rule must be gone
+  open_work_editor || { fail "$name" "could not reopen the Work profile editor"; return 1; }
+  if wait_gone "^$host\$" 10; then pass "$name"; else fail "$name" "rule still listed after removal"; tap_text_scroll '^Cancel$'; return 1; fi
+  tap_text_scroll '^Cancel$' || back
 
   name='"Ask which profile" switch off: link opens in Default without a dialog'
   dump
@@ -523,6 +548,111 @@ check_link_chooser() {
   if ui_query has '^Open link in$'; then fail "$name" "dialog shown with the setting off"; return 1; fi
   v=$(read_page_value 40) || { fail "$name" "page not readable"; return 1; }
   if [ "$v" = 'who=default' ]; then pass "$name"; else fail "$name" "expected who=default, saw $v"; fi
+}
+
+# ---- profile UX checks (toolbar chip, chip dialog, new tab in profile, tab tray filter) -------------
+# Open the read page in a Work tab and wait until it is the selected tab (chip shown). With a known contextId use an
+# intent; otherwise load it in Default and hand the tab over through Menu > More > Open in profile.
+open_work_tab() {
+  if [ -n "$WORK_CTX" ]; then view_ctx "$(read_url)" "$WORK_CTX"
+  else view_default "$(read_url)"; sleep 4; open_selected_in_work || return 1; fi
+  wait_for_text '^Profile: Work$' 40
+}
+# On the browser screen: 0 if the toolbar shows the chip of profile <name> (content-desc "Profile: <name>").
+chip_is() { wait_for_text "^Profile: $1\$" "${2:-15}"; }
+# Chip -> actions dialog -> set the "Always open <host> in this profile" switch to <on|off>, close the dialog.
+set_always_open() {
+  local want=$1 sw state
+  tap_text '^Profile: ' 15 || return 1
+  wait_for_text "^Always open $HOST in this profile\$" 15 || return 1
+  dump; sw=$(switch_xy) || return 1; state=${sw##* }
+  if [ "$state" != "$want" ]; then
+    tap_text "^Always open $HOST in this profile\$" 5 || return 1
+    sleep 1; dump; sw=$(switch_xy) || return 1; state=${sw##* }
+  fi
+  tap_text '^Close$' 5 || back
+  [ "$state" = "$want" ]
+}
+
+check_profile_chip() {
+  local name='toolbar chip: shown on a Work tab, absent on a Default tab'
+  open_work_tab || { fail "$name" "no 'Profile: Work' chip on a Work tab"; return 1; }
+  shot chip-work
+  view_default "$(read_url)"
+  wait_value who=default 40 || { fail "$name" "Default page did not load"; return 1; }
+  dump
+  if ui_query has '^Profile: '; then fail "$name" "chip shown on a Default tab"; return 1; fi
+  pass "$name"
+}
+
+check_new_tab_in_profile() {
+  local name='tab counter long-press > "New tab in profile…" > Work: new tab shows the Work chip'
+  view_default "$(read_url)"; wait_value who=default 40 || { fail "$name" "Default page did not load"; return 1; }
+  dump
+  ui_query has '^Profile: ' && { fail "$name" "precondition: Default tab shows a chip"; return 1; }
+  local xy
+  xy=$(ui_query center 'Tabs [Oo]pen|^Tab counter|tab counter') || { fail "$name" "no tab counter in the toolbar"; return 1; }
+  sh_ input swipe ${xy} ${xy} 900; sleep 1
+  tap_text '^New tab in profile…$' 10 || { fail "$name" "no 'New tab in profile…' in the long-press menu"; return 1; }
+  wait_for_text '^Work$' 10 || { fail "$name" "profile picker did not list Work"; return 1; }
+  tap_text '^Work$' 5
+  chip_is Work 20 || { fail "$name" "new tab has no Work chip"; return 1; }
+  shot new-work-tab
+  pass "$name"
+}
+
+check_tabs_filter() {
+  local name='tab tray profile filter: Work shows only Work tabs, All profiles resets'
+  # Precondition: both profiles own a tab titled by their cookie (who_default / who_work).
+  view_default "$(read_url)"; wait_value who=default 40 || { fail "$name" "Default page did not load"; return 1; }
+  open_work_tab || { fail "$name" "could not open a Work tab"; return 1; }
+  view_default "$(read_url)"; wait_value who=default 40 || { fail "$name" "Default page did not load"; return 1; }
+  dump
+  local xy
+  xy=$(ui_query center 'Tabs [Oo]pen|^Tab counter|tab counter') || { fail "$name" "no tab counter"; return 1; }
+  tap_xy ${xy}
+  # The filter chip is the first row of the list; the tray opens scrolled to the selected tab, so scroll back up to it.
+  local k found=0
+  for k in 1 2 3 4 5 6 7 8; do
+    if wait_for_text '^All profiles$' 3; then found=1; break; fi
+    swipe_down
+  done
+  [ "$found" = 1 ] || { fail "$name" "tab tray shows no profile filter chip"; back; return 1; }
+  ui_query has 'who_default' || log "unfiltered tray: Default marker tab not on screen (list is long); continuing"
+  tap_text '^All profiles$' 5 || { fail "$name" "cannot open the filter"; back; return 1; }
+  wait_for_text '^Work$' 10 || { fail "$name" "filter lists no Work"; back; return 1; }
+  tap_text '^Work$' 5
+  wait_gone 'who_default' 15 || { fail "$name" "Default tab still listed with the Work filter"; back; return 1; }
+  dump; ui_query has 'who_work' || { fail "$name" "no Work tab listed with the Work filter"; back; return 1; }
+  shot tabs-filter-work
+  tap_text '^Work$' 5 || { fail "$name" "cannot reopen the filter"; back; return 1; }
+  wait_for_text '^All profiles$' 10 && tap_text '^All profiles$' 5
+  # Reset: the chip reads "All profiles" again and the Default tabs are back (the list may be long: scroll to find one).
+  local seen=0
+  wait_for_text '^All profiles$' 10 || { fail "$name" "chip did not reset to All profiles"; back; return 1; }
+  for k in 1 2 3 4 5 6 7 8; do
+    dump; if ui_query has 'who_default'; then seen=1; break; fi
+    swipe_up
+  done
+  back
+  if [ "$seen" = 1 ]; then pass "$name"; else fail "$name" "Default tab not back after resetting to All profiles"; fi
+}
+
+check_always_open_via_chip() {
+  local name='chip dialog: "Always open <host> in this profile" ON routes a Default load to Work, OFF stops it' v
+  open_work_tab || { fail "$name" "no Work tab to start from"; return 1; }
+  set_always_open on || { fail "$name" "could not switch the rule on"; set_always_open off; return 1; }
+  # A Default-profile intent for the same host must end up in a Work tab.
+  view_default "$(read_url)"
+  v=$(read_page_value 40) || { fail "$name" "page not readable"; set_always_open off; return 1; }
+  if [ "$v" != 'who=work' ] || ! chip_is Work 10; then
+    fail "$name" "rule ON: expected who=work + Work chip, saw $v"; set_always_open off; return 1
+  fi
+  shot always-on
+  set_always_open off || { fail "$name" "could not switch the rule off"; return 1; }
+  view_default "$(read_url)"
+  v=$(read_page_value 40) || { fail "$name" "page not readable after OFF"; return 1; }
+  dump; if [ "$v" = 'who=default' ] && ! ui_query has '^Profile: '; then pass "$name"; else fail "$name" "rule OFF: expected who=default, saw $v"; fi
 }
 
 check_no_crash() {
@@ -556,6 +686,10 @@ check_install_launch && {
   check_cookie_isolation
   check_downloads_app_only
   check_link_chooser
+  check_profile_chip
+  check_new_tab_in_profile
+  check_tabs_filter
+  check_always_open_via_chip
 }
 check_no_crash
 
