@@ -57,7 +57,7 @@ class ProfileLinkIntentProcessor(
         val hasProfiles = containers.isNotEmpty() || storage.knownProfiles().isNotEmpty()
         if (!hasProfiles) return false
 
-        val rule = storage.ruleFor(host)
+        val rule = ProfileSiteRouter.matchRule(host.lowercase(), storage.rules())
         if (rule != null) {
             val stale = rule != ProfileStorage.DEFAULT_ID && containers.isNotEmpty() && !containers.containsKey(rule)
             if (!stale) {

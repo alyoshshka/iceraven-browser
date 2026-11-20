@@ -54,8 +54,9 @@ class ProfileStorage(context: Context) {
     /** Deletes the profile's folder, its cached name and its site rules. */
     fun deleteProfileFiles(contextId: String) {
         File(profilesRoot, contextId).deleteRecursively()
-        prefs.edit().remove("$contextId.name").apply()
+        prefs.edit().remove("$contextId.name").remove("$contextId$LIMIT_SUFFIX").apply()
         rules().filterValues { it == contextId }.keys.forEach { removeRule(it) }
+        invalidateCaches()
     }
 
     /** Whether links from other apps ask which profile to open in (default on). */
@@ -64,20 +65,52 @@ class ProfileStorage(context: Context) {
         set(value) = prefs.edit().putBoolean(KEY_ASK_LINKS, value).apply()
 
     /** The remembered profile for [host]: [DEFAULT_ID] for the Default profile, a contextId, or null if no rule. */
-    fun ruleFor(host: String): String? = rulePrefs.getString(host.lowercase(), null)
+    fun ruleFor(host: String): String? = rules()[host.lowercase()]
 
     /** Remembers that links to [host] open in [contextId] (null for Default) without asking. */
     fun setRule(host: String, contextId: String?) {
         rulePrefs.edit().putString(host.lowercase(), contextId ?: DEFAULT_ID).apply()
+        invalidateCaches()
     }
 
     fun removeRule(host: String) {
         rulePrefs.edit().remove(host.lowercase()).apply()
+        invalidateCaches()
     }
 
-    /** host -> contextId ([DEFAULT_ID] for Default) of every saved site rule. */
+    /** host -> contextId ([DEFAULT_ID] for Default) of every saved site rule. Cached in memory. */
     fun rules(): Map<String, String> =
-        rulePrefs.all.entries.filter { it.value is String }.associate { it.key to it.value as String }
+        cachedRules ?: rulePrefs.all.entries
+            .filter { it.value is String }
+            .associate { it.key to it.value as String }
+            .also { cachedRules = it }
+
+    /** The hosts that always open in [contextId], sorted. */
+    fun sitesOf(contextId: String): List<String> =
+        rules().filterValues { it == contextId }.keys.sorted()
+
+    /** Whether the profile only keeps its designated sites; other sites open in Default. */
+    fun isLimited(contextId: String): Boolean = limitedProfiles().contains(contextId)
+
+    /** Ids of the profiles limited to their designated sites. Cached in memory. */
+    fun limitedProfiles(): Set<String> =
+        cachedLimited ?: prefs.all.entries
+            .filter { it.key.endsWith(LIMIT_SUFFIX) && it.value == true }
+            .map { it.key.removeSuffix(LIMIT_SUFFIX) }
+            .toSet()
+            .also { cachedLimited = it }
+
+    fun setLimited(contextId: String, limited: Boolean) {
+        prefs.edit().apply {
+            if (limited) putBoolean("$contextId$LIMIT_SUFFIX", true) else remove("$contextId$LIMIT_SUFFIX")
+        }.apply()
+        invalidateCaches()
+    }
+
+    private fun invalidateCaches() {
+        cachedRules = null
+        cachedLimited = null
+    }
 
     companion object {
         /** Reserved id of the default (container-less) profile; container ids are UUIDs, so it can't collide. */
@@ -86,5 +119,13 @@ class ProfileStorage(context: Context) {
         private const val RULES_PREFS = "profiles_site_rules"
         private const val KEY_ASK_LINKS = "ask_for_external_links"
         private const val NAME_SUFFIX = ".name"
+        private const val LIMIT_SUFFIX = ".limit"
+
+        // Shared by all instances (callers create ProfileStorage freely); read on the engine's request path.
+        @Volatile
+        private var cachedRules: Map<String, String>? = null
+
+        @Volatile
+        private var cachedLimited: Set<String>? = null
     }
 }

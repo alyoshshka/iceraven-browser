@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -54,25 +55,40 @@ import mozilla.components.compose.base.button.TextButton
 import mozilla.components.feature.prompts.R as promptsR
 import mozilla.components.ui.icons.R as iconsR
 import org.mozilla.fenix.R
+import org.mozilla.fenix.compose.list.IconListItem
+import org.mozilla.fenix.compose.list.SwitchListItem
 import org.mozilla.fenix.theme.FirefoxTheme
 
 private val ColorCircleSize = 40.dp
 private const val COLORS_PER_ROW = 4
+private const val ICONS_PER_ROW = 5
 
 /**
- * Profiles: dialog to add a profile ([existing] null) or to rename and recolor [existing].
+ * Profiles: dialog to add a profile ([existing] null) or to rename, recolor and re-icon [existing]. When editing it
+ * also shows the profile's designated sites and the "Limit to designated sites" switch.
  *
  * @param existing The profile being edited, or null when adding.
  * @param defaultColor Color preselected when adding (the first color no other profile uses).
+ * @param sites Hosts that always open in the profile being edited.
+ * @param limited Whether the profile being edited is limited to its designated sites.
  * @param onDismiss Invoked when the dialog is cancelled.
- * @param onSave Invoked with the trimmed, non-empty name and the chosen color.
+ * @param onSave Invoked with the trimmed, non-empty name, the chosen color and icon, the limit switch and the sites
+ * the user removed from the list.
  */
 @Composable
 fun ProfileEditDialog(
     existing: ContainerState?,
     defaultColor: ContainerState.Color,
     onDismiss: () -> Unit,
-    onSave: (name: String, color: ContainerState.Color) -> Unit,
+    onSave: (
+        name: String,
+        color: ContainerState.Color,
+        icon: ContainerState.Icon,
+        limited: Boolean,
+        removedSites: Set<String>,
+    ) -> Unit,
+    sites: List<String> = emptyList(),
+    limited: Boolean = false,
 ) {
     // TextFieldValue so the cursor starts at the end of the prefilled name.
     var nameValue by remember {
@@ -81,6 +97,9 @@ fun ProfileEditDialog(
     }
     val name = nameValue.text
     var color by remember { mutableStateOf(existing?.color ?: defaultColor) }
+    var icon by remember { mutableStateOf(existing?.icon ?: ContainerState.Icon.CIRCLE) }
+    var limitSites by remember { mutableStateOf(limited) }
+    var removedSites by remember { mutableStateOf(emptySet<String>()) }
     var nameError by remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
 
@@ -141,6 +160,27 @@ fun ProfileEditDialog(
                 Spacer(modifier = Modifier.height(8.dp))
 
                 ProfileColorPicker(selected = color, onSelected = { color = it })
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Text(
+                    text = stringResource(R.string.profiles_icon_label),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = FirefoxTheme.typography.caption,
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                ProfileIconPicker(selected = icon, color = color.toComposeColor(), onSelected = { icon = it })
+
+                if (existing != null) {
+                    ProfileSitesSection(
+                        sites = sites.filter { it !in removedSites },
+                        limited = limitSites,
+                        onLimitedChange = { limitSites = it },
+                        onRemoveSite = { removedSites = removedSites + it },
+                    )
+                }
             }
         },
         confirmButton = {
@@ -148,7 +188,7 @@ fun ProfileEditDialog(
                 text = stringResource(promptsR.string.mozac_feature_prompt_save_confirmation),
                 onClick = {
                     val trimmed = name.trim()
-                    if (trimmed.isEmpty()) nameError = true else onSave(trimmed, color)
+                    if (trimmed.isEmpty()) nameError = true else onSave(trimmed, color, icon, limitSites, removedSites)
                 },
             )
         },
@@ -179,6 +219,91 @@ private fun ProfileColorPicker(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun ProfileIconPicker(
+    selected: ContainerState.Icon,
+    color: Color,
+    onSelected: (ContainerState.Icon) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        ProfileIconPalette.chunked(ICONS_PER_ROW).forEach { rowIcons ->
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                rowIcons.forEach { option ->
+                    val isSelected = option == selected
+                    Box(
+                        modifier = Modifier
+                            .size(ColorCircleSize)
+                            .clip(CircleShape)
+                            .then(
+                                if (isSelected) {
+                                    Modifier.border(2.dp, MaterialTheme.colorScheme.onSurface, CircleShape)
+                                } else {
+                                    Modifier
+                                },
+                            )
+                            .clickable(role = Role.RadioButton, onClick = { onSelected(option) })
+                            .semantics {
+                                contentDescription = ""
+                                this.selected = isSelected
+                                role = Role.RadioButton
+                            },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        ProfileIcon(
+                            icon = option,
+                            color = if (isSelected) color else MaterialTheme.colorScheme.onSurfaceVariant,
+                            contentDescription = stringResource(option.nameRes()),
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Designated sites and the limit switch of the profile being edited. */
+@Composable
+private fun ProfileSitesSection(
+    sites: List<String>,
+    limited: Boolean,
+    onLimitedChange: (Boolean) -> Unit,
+    onRemoveSite: (String) -> Unit,
+) {
+    Spacer(modifier = Modifier.height(16.dp))
+
+    SwitchListItem(
+        label = stringResource(R.string.profiles_limit_sites),
+        description = stringResource(R.string.profiles_limit_sites_description),
+        maxDescriptionLines = 2,
+        checked = limited,
+        onClick = onLimitedChange,
+    )
+
+    Text(
+        text = stringResource(R.string.profiles_sites_title),
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        style = FirefoxTheme.typography.caption,
+        modifier = Modifier.padding(top = 8.dp, bottom = 4.dp),
+    )
+
+    if (sites.isEmpty()) {
+        Text(
+            text = stringResource(R.string.profiles_sites_empty),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = FirefoxTheme.typography.body2,
+        )
+    }
+    sites.forEach { host ->
+        IconListItem(
+            label = host,
+            beforeIconPainter = painterResource(iconsR.drawable.mozac_ic_globe_24),
+            afterIconPainter = painterResource(iconsR.drawable.mozac_ic_delete_24),
+            afterIconDescription = stringResource(R.string.profiles_site_rule_remove, host),
+            onAfterIconClick = { onRemoveSite(host) },
+        )
     }
 }
 
@@ -267,7 +392,7 @@ private fun ProfileEditDialogPreview() {
                 existing = null,
                 defaultColor = ContainerState.Color.BLUE,
                 onDismiss = {},
-                onSave = { _, _ -> },
+                onSave = { _, _, _, _, _ -> },
             )
         }
     }
