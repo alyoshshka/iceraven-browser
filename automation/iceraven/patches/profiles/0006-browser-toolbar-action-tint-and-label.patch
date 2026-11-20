@@ -159,21 +159,3 @@ index 04d9e0fc..c8d01299 100644
  }
  
  @Composable
-diff --git a/plugins/config/.gradle/9.8.1/executionHistory/executionHistory.lock b/plugins/config/.gradle/9.8.1/executionHistory/executionHistory.lock
-index 298eb581..da2a7b51 100644
-Binary files a/plugins/config/.gradle/9.8.1/executionHistory/executionHistory.lock and b/plugins/config/.gradle/9.8.1/executionHistory/executionHistory.lock differ
-diff --git a/plugins/config/.gradle/buildOutputCleanup/buildOutputCleanup.lock b/plugins/config/.gradle/buildOutputCleanup/buildOutputCleanup.lock
-index 9b8a3915..e40aa6ea 100644
-Binary files a/plugins/config/.gradle/buildOutputCleanup/buildOutputCleanup.lock and b/plugins/config/.gradle/buildOutputCleanup/buildOutputCleanup.lock differ
-diff --git a/plugins/dependencies/.gradle/9.8.1/executionHistory/executionHistory.lock b/plugins/dependencies/.gradle/9.8.1/executionHistory/executionHistory.lock
-index 80653ef0..306da071 100644
-Binary files a/plugins/dependencies/.gradle/9.8.1/executionHistory/executionHistory.lock and b/plugins/dependencies/.gradle/9.8.1/executionHistory/executionHistory.lock differ
-diff --git a/plugins/dependencies/.gradle/buildOutputCleanup/buildOutputCleanup.lock b/plugins/dependencies/.gradle/buildOutputCleanup/buildOutputCleanup.lock
-index 860bfb3c..d6a71ec9 100644
-Binary files a/plugins/dependencies/.gradle/buildOutputCleanup/buildOutputCleanup.lock and b/plugins/dependencies/.gradle/buildOutputCleanup/buildOutputCleanup.lock differ
-diff --git a/plugins/publicsuffixlist/.gradle/9.8.1/executionHistory/executionHistory.lock b/plugins/publicsuffixlist/.gradle/9.8.1/executionHistory/executionHistory.lock
-index eb28bbac..2db3b2bb 100644
-Binary files a/plugins/publicsuffixlist/.gradle/9.8.1/executionHistory/executionHistory.lock and b/plugins/publicsuffixlist/.gradle/9.8.1/executionHistory/executionHistory.lock differ
-diff --git a/plugins/publicsuffixlist/.gradle/buildOutputCleanup/buildOutputCleanup.lock b/plugins/publicsuffixlist/.gradle/buildOutputCleanup/buildOutputCleanup.lock
-index 09a77722..65d85b06 100644
-Binary files a/plugins/publicsuffixlist/.gradle/buildOutputCleanup/buildOutputCleanup.lock and b/plugins/publicsuffixlist/.gradle/buildOutputCleanup/buildOutputCleanup.lock differ
