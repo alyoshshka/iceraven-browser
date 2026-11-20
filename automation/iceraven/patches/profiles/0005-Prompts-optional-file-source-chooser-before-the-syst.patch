@@ -1,0 +1,185 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: alyoshshka <123838530+alyoshshka@users.noreply.github.com>
+Date: Sat, 14 Nov 2026 19:00:59 +0000
+Subject: [PATCH] Prompts: optional file source chooser before the system
+ picker; downloads FileProvider paths cover profiles/
+
+From: alyoshshka <123838530+alyoshshka@users.noreply.github.com>
+
+---
+ .../res/xml/feature_downloads_file_paths.xml  |  2 +
+ .../feature/prompts/PromptFeature.kt          |  8 +++
+ .../feature/prompts/file/FilePicker.kt        | 64 +++++++++++++++++++
+ .../feature/prompts/file/FileSourceChooser.kt | 35 ++++++++++
+ 4 files changed, 109 insertions(+)
+ create mode 100644 components/feature/prompts/src/main/java/mozilla/components/feature/prompts/file/FileSourceChooser.kt
+
+diff --git a/components/feature/downloads/src/main/res/xml/feature_downloads_file_paths.xml b/components/feature/downloads/src/main/res/xml/feature_downloads_file_paths.xml
+index 6b07cd1807f7bef9ee2ea4513a3196ad5e647cf4..8b359b7b2574df3d2dee2c36f1f176456259e94b 100644
+--- a/components/feature/downloads/src/main/res/xml/feature_downloads_file_paths.xml
++++ b/components/feature/downloads/src/main/res/xml/feature_downloads_file_paths.xml
+@@ -4,6 +4,8 @@
+    - You can obtain one at http://mozilla.org/MPL/2.0/.  -->
+ <paths>
+     <external-path name="Download" path="." />
++    <!-- Profiles: app-only per-profile downloads -->
++    <files-path name="profileDownloads" path="profiles/"/>
+     <external-files-path name="externalFilesDownload" path="Download/" />
+ 
+     <!-- Offer access only to files under Context.getCacheDir()/media_share_cache/ -->
+diff --git a/components/feature/prompts/src/main/java/mozilla/components/feature/prompts/PromptFeature.kt b/components/feature/prompts/src/main/java/mozilla/components/feature/prompts/PromptFeature.kt
+index 53ec4239247a15f9e3fa139499c64fd7e0e24a07..04c2ac760f1acb9588085cc0614ee278aaca97bf 100644
+--- a/components/feature/prompts/src/main/java/mozilla/components/feature/prompts/PromptFeature.kt
++++ b/components/feature/prompts/src/main/java/mozilla/components/feature/prompts/PromptFeature.kt
+@@ -102,6 +102,7 @@ import mozilla.components.feature.prompts.facts.emitSuccessfulAddressAutofillFor
+ import mozilla.components.feature.prompts.facts.emitSuccessfulCreditCardAutofillFormDetectedFact
+ import mozilla.components.feature.prompts.file.AndroidPhotoPicker
+ import mozilla.components.feature.prompts.file.FilePicker
++import mozilla.components.feature.prompts.file.FileSourceChooser
+ import mozilla.components.feature.prompts.file.FileUploadsDirCleaner
+ import mozilla.components.feature.prompts.identitycredential.DialogColors
+ import mozilla.components.feature.prompts.identitycredential.DialogColorsProvider
+@@ -397,6 +398,13 @@ private constructor(
+             onNeedToRequestPermissions,
+         )
+ 
++    // Profiles: optional chooser offered before the system file picker (null keeps the original behavior).
++    var fileSourceChooser: FileSourceChooser?
++        get() = filePicker.fileSourceChooser
++        set(value) {
++            filePicker.fileSourceChooser = value
++        }
++
+     @VisibleForTesting(otherwise = PRIVATE) internal var certificatePicker = CertificatePicker(container)
+ 
+     @VisibleForTesting(otherwise = PRIVATE)
+diff --git a/components/feature/prompts/src/main/java/mozilla/components/feature/prompts/file/FilePicker.kt b/components/feature/prompts/src/main/java/mozilla/components/feature/prompts/file/FilePicker.kt
+index cafc7961b8524f11a773a224eb13812fdc909d68..e0a4bd0fc8c926d76b79fa4be37adef33d413139 100644
+--- a/components/feature/prompts/src/main/java/mozilla/components/feature/prompts/file/FilePicker.kt
++++ b/components/feature/prompts/src/main/java/mozilla/components/feature/prompts/file/FilePicker.kt
+@@ -61,6 +61,12 @@ internal class FilePicker(
+ 
+     private val logger = Logger("FilePicker")
+ 
++    // Profiles: when set, the user is first asked where to upload from (app files / device / camera).
++    @VisibleForTesting internal var fileSourceChooser: FileSourceChooser? = null
++
++    // Profiles: only the capture intents are wanted for the current request.
++    private var captureOnly = false
++
+     /** Cache of the current request to be used after permission is granted. */
+     @VisibleForTesting internal var currentRequest: PromptRequest? = null
+ 
+@@ -70,6 +76,48 @@ internal class FilePicker(
+      * @param promptRequest The [File] prompt request.
+      */
+     fun handleFileRequest(promptRequest: File) {
++        val chooser = fileSourceChooser
++        if (chooser == null) {
++            handleSystemFileRequest(promptRequest)
++            return
++        }
++        // Profiles: let the app offer its own files first.
++        captureOnly = false
++        chooser.chooseSource(
++            FileSourceRequest(
++                request = promptRequest,
++                canCapture = MimeType.values().any { it.matches(promptRequest.mimeTypes) && it.capturePermission != null },
++                onDeviceFiles = { handleSystemFileRequest(promptRequest) },
++                onCamera = {
++                    captureOnly = true
++                    handleSystemFileRequest(promptRequest)
++                },
++                onFilesChosen = { uris -> deliverChosenFiles(promptRequest, uris) },
++                onCancel = {
++                    store.consumePromptFrom(sessionId, promptRequest.uid) { promptRequest.onDismiss() }
++                },
++            ),
++        )
++    }
++
++    // Profiles: hands app-chosen content Uris to the page, like a picker result would.
++    private fun deliverChosenFiles(promptRequest: File, uris: List<Uri>) {
++        store.consumePromptFrom(sessionId, promptRequest.uid) {
++            when {
++                uris.isEmpty() -> promptRequest.onDismiss()
++                promptRequest.isMultipleFilesSelection -> {
++                    uris.forEach { enqueueForCleanup(container.context, it) }
++                    promptRequest.onMultipleFilesSelected(container.context, uris.toTypedArray())
++                }
++                else -> {
++                    enqueueForCleanup(container.context, uris.first())
++                    promptRequest.onSingleFileSelected(container.context, uris.first())
++                }
++            }
++        }
++    }
++
++    private fun handleSystemFileRequest(promptRequest: File) {
+         // Track which permissions are needed.
+         val neededPermissions = getNecessaryPermissions(promptRequest)
+ 
+@@ -254,6 +302,22 @@ internal class FilePicker(
+     @VisibleForTesting
+     internal fun onPermissionsGranted(promptRequest: File) {
+         val intents = buildIntentList(promptRequest)
++        // Profiles: "Camera" source - keep only the capture intents (they carry EXTRA_OUTPUT or a capture action).
++        if (captureOnly) {
++            captureOnly = false
++            val captureIntents = intents.filter {
++                it.action == android.provider.MediaStore.ACTION_IMAGE_CAPTURE ||
++                    it.action == android.provider.MediaStore.ACTION_VIDEO_CAPTURE ||
++                    it.action == android.provider.MediaStore.Audio.Media.RECORD_SOUND_ACTION
++            }.toMutableList()
++            if (captureIntents.isNotEmpty()) {
++                showChooser(captureIntents)
++            } else if (intents.isNotEmpty()) {
++                // buildIntentList may already have launched a capture activity (captureMode) and returned empty.
++                showChooser(intents)
++            }
++            return
++        }
+         showChooser(intents)
+     }
+ 
+diff --git a/components/feature/prompts/src/main/java/mozilla/components/feature/prompts/file/FileSourceChooser.kt b/components/feature/prompts/src/main/java/mozilla/components/feature/prompts/file/FileSourceChooser.kt
+new file mode 100644
+index 0000000000000000000000000000000000000000..6702a97f238075328e5aab9ba723060d996ef4a9
+--- /dev/null
++++ b/components/feature/prompts/src/main/java/mozilla/components/feature/prompts/file/FileSourceChooser.kt
+@@ -0,0 +1,35 @@
++/* This Source Code Form is subject to the terms of the Mozilla Public
++ * License, v. 2.0. If a copy of the MPL was not distributed with this
++ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
++
++package mozilla.components.feature.prompts.file
++
++import android.net.Uri
++import mozilla.components.concept.engine.prompt.PromptRequest
++
++// Profiles: optional hook letting the app offer its own file source before the system picker.
++
++/**
++ * A pending web page file request, handed to a [FileSourceChooser] together with the ways to answer it.
++ *
++ * @property request The original [PromptRequest.File] (accepted mime types, single or multiple selection).
++ * @property canCapture Whether the existing prompt would offer taking a photo, video or audio.
++ * @property onDeviceFiles Continue with the regular system file picker.
++ * @property onCamera Continue with the capture (camera/recorder) intents only.
++ * @property onFilesChosen Deliver the chosen content Uris to the page (one Uri for single selection).
++ * @property onCancel Dismiss the request.
++ */
++class FileSourceRequest(
++    val request: PromptRequest.File,
++    val canCapture: Boolean,
++    val onDeviceFiles: () -> Unit,
++    val onCamera: () -> Unit,
++    val onFilesChosen: (List<Uri>) -> Unit,
++    val onCancel: () -> Unit,
++)
++
++/** Shows the app's own "Upload from" chooser. Exactly one of the callbacks in [FileSourceRequest] must be invoked. */
++fun interface FileSourceChooser {
++    /** Offer the sources for [source]. */
++    fun chooseSource(source: FileSourceRequest)
++}

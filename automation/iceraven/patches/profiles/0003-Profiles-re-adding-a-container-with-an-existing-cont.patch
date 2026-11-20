@@ -1,0 +1,49 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: alyoshshka <123838530+alyoshshka@users.noreply.github.com>
+Date: Sat, 14 Nov 2026 17:58:46 +0000
+Subject: [PATCH] Profiles: re-adding a container with an existing contextId
+ replaces it
+
+From: alyoshshka <123838530+alyoshshka@users.noreply.github.com>
+
+---
+ .../components/browser/state/reducer/ContainerReducer.kt      | 3 ++-
+ .../mozilla/components/feature/containers/db/ContainerDao.kt  | 4 +++-
+ 2 files changed, 5 insertions(+), 2 deletions(-)
+
+diff --git a/components/browser/state/src/main/java/mozilla/components/browser/state/reducer/ContainerReducer.kt b/components/browser/state/src/main/java/mozilla/components/browser/state/reducer/ContainerReducer.kt
+index 4b8d4a9541953f81ea64152b4045d754bc15d28f..689fb24642bac715a18097ba2c96e4116ba1c719 100644
+--- a/components/browser/state/src/main/java/mozilla/components/browser/state/reducer/ContainerReducer.kt
++++ b/components/browser/state/src/main/java/mozilla/components/browser/state/reducer/ContainerReducer.kt
+@@ -12,7 +12,8 @@ internal object ContainerReducer {
+         return when (action) {
+             is ContainerAction.AddContainerAction -> {
+                 val existingContainer = state.containers[action.container.contextId]
+-                if (existingContainer == null) {
++                // Profiles: adding a container with an existing contextId replaces it (rename / change color).
++                if (existingContainer != action.container) {
+                     state.copy(containers = state.containers + (action.container.contextId to action.container))
+                 } else {
+                     state
+diff --git a/components/feature/containers/src/main/java/mozilla/components/feature/containers/db/ContainerDao.kt b/components/feature/containers/src/main/java/mozilla/components/feature/containers/db/ContainerDao.kt
+index b916a86200feb0152fca60ea0176bc226ce8bff7..c48857ffa7c90fdfdcfc8c74245fdcea0044c72e 100644
+--- a/components/feature/containers/src/main/java/mozilla/components/feature/containers/db/ContainerDao.kt
++++ b/components/feature/containers/src/main/java/mozilla/components/feature/containers/db/ContainerDao.kt
+@@ -8,6 +8,7 @@ import androidx.paging.DataSource
+ import androidx.room.Dao
+ import androidx.room.Delete
+ import androidx.room.Insert
++import androidx.room.OnConflictStrategy
+ import androidx.room.Query
+ import androidx.room.Transaction
+ import kotlinx.coroutines.flow.Flow
+@@ -15,7 +16,8 @@ import kotlinx.coroutines.flow.Flow
+ /** Internal DAO for accessing [ContainerEntity] instances. */
+ @Dao
+ internal interface ContainerDao {
+-    @Insert suspend fun insertContainer(container: ContainerEntity): Long
++    // Profiles: REPLACE so that re-adding an existing contextId updates its name / color.
++    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun insertContainer(container: ContainerEntity): Long
+ 
+     @Delete suspend fun deleteContainer(identity: ContainerEntity)
+ 

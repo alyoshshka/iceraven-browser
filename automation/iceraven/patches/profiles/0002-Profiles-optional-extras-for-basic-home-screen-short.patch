@@ -1,0 +1,96 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: alyoshshka <123838530+alyoshshka@users.noreply.github.com>
+Date: Sat, 14 Nov 2026 17:20:23 +0000
+Subject: [PATCH] Profiles: optional extras for basic home screen shortcuts
+
+From: alyoshshka <123838530+alyoshshka@users.noreply.github.com>
+
+---
+ .../feature/pwa/WebAppShortcutManager.kt           |  8 +++++++-
+ .../components/feature/pwa/WebAppUseCases.kt       | 14 ++++++++++++--
+ 2 files changed, 19 insertions(+), 3 deletions(-)
+
+diff --git a/components/feature/pwa/src/main/java/mozilla/components/feature/pwa/WebAppShortcutManager.kt b/components/feature/pwa/src/main/java/mozilla/components/feature/pwa/WebAppShortcutManager.kt
+index d982d368c41b6f0625bad99cb0a67b444c20eab5..33c6b8e421291777c4d54fae25f6426e922cff8a 100644
+--- a/components/feature/pwa/src/main/java/mozilla/components/feature/pwa/WebAppShortcutManager.kt
++++ b/components/feature/pwa/src/main/java/mozilla/components/feature/pwa/WebAppShortcutManager.kt
+@@ -13,6 +13,7 @@ import android.content.Intent.CATEGORY_HOME
+ import android.content.Intent.FLAG_ACTIVITY_NEW_DOCUMENT
+ import android.content.Intent.FLAG_ACTIVITY_NEW_TASK
+ import android.content.pm.ShortcutManager
++import android.os.Bundle
+ import androidx.annotation.VisibleForTesting
+ import androidx.core.content.getSystemService
+ import androidx.core.content.pm.ShortcutInfoCompat
+@@ -73,11 +74,13 @@ class WebAppShortcutManager(
+      * @param context The current context.
+      * @param session The session to create the shortcut for.
+      * @param overrideShortcutName (optional) The name of the shortcut. Ignored for PWAs.
++     * @param basicShortcutExtras (optional) Extras added to the intent of a basic (non-PWA) shortcut.
+      */
+     suspend fun requestPinShortcut(
+         context: Context,
+         session: SessionState,
+         overrideShortcutName: String? = null,
++        basicShortcutExtras: Bundle? = null,
+     ) {
+         if (ShortcutManagerCompat.isRequestPinShortcutSupported(context)) {
+             val manifest = session.installableManifest()
+@@ -86,7 +89,7 @@ class WebAppShortcutManager(
+                     emitPwaInstallFact()
+                     buildWebAppShortcut(context, manifest)
+                 } else {
+-                    buildBasicShortcut(context, session, overrideShortcutName)
++                    buildBasicShortcut(context, session, overrideShortcutName, basicShortcutExtras)
+                 }
+ 
+             if (shortcut != null) {
+@@ -125,11 +128,14 @@ class WebAppShortcutManager(
+         context: Context,
+         session: SessionState,
+         overrideShortcutName: String? = null,
++        extras: Bundle? = null,
+     ): ShortcutInfoCompat {
+         val shortcutIntent =
+             Intent(Intent.ACTION_VIEW, session.content.url.toUri()).apply {
+                 addCategory(SHORTCUT_CATEGORY)
+                 `package` = context.packageName
++                // Profiles: lets the app attach extra data (e.g. the profile) to the shortcut.
++                extras?.let { putExtras(it) }
+             }
+ 
+         val manifest = session.content.webAppManifest
+diff --git a/components/feature/pwa/src/main/java/mozilla/components/feature/pwa/WebAppUseCases.kt b/components/feature/pwa/src/main/java/mozilla/components/feature/pwa/WebAppUseCases.kt
+index 217e533b943693bee8b6bae16cc1882e9c28dc40..1a12cc238d19edf69152021c2514ada178b27e75 100644
+--- a/components/feature/pwa/src/main/java/mozilla/components/feature/pwa/WebAppUseCases.kt
++++ b/components/feature/pwa/src/main/java/mozilla/components/feature/pwa/WebAppUseCases.kt
+@@ -5,6 +5,7 @@
+ package mozilla.components.feature.pwa
+ 
+ import android.content.Context
++import android.os.Bundle
+ import androidx.core.content.pm.ShortcutManagerCompat
+ import mozilla.components.browser.state.selector.selectedTab
+ import mozilla.components.browser.state.store.BrowserStore
+@@ -40,10 +41,19 @@ class WebAppUseCases(
+         /**
+          * @param overrideBasicShortcutName (optional) Custom label used if the current session is NOT a Progressive Web
+          *   App
++         * @param basicShortcutExtras (optional) Extras added to the intent of a basic (non-PWA) shortcut.
+          */
+-        suspend operator fun invoke(overrideBasicShortcutName: String? = null) {
++        suspend operator fun invoke(
++            overrideBasicShortcutName: String? = null,
++            basicShortcutExtras: Bundle? = null,
++        ) {
+             val session = store.state.selectedTab ?: return
+-            shortcutManager.requestPinShortcut(applicationContext, session, overrideBasicShortcutName)
++            shortcutManager.requestPinShortcut(
++                applicationContext,
++                session,
++                overrideBasicShortcutName,
++                basicShortcutExtras,
++            )
+         }
+     }
+ 

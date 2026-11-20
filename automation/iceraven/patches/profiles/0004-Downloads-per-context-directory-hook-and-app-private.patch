@@ -1,0 +1,139 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: alyoshshka <123838530+alyoshshka@users.noreply.github.com>
+Date: Sat, 14 Nov 2026 18:34:09 +0000
+Subject: [PATCH] Downloads: per-context directory hook and app-private file
+ support
+
+From: alyoshshka <123838530+alyoshshka@users.noreply.github.com>
+
+---
+ .../feature/downloads/DownloadsFeature.kt     | 10 +++++++--
+ .../filewriter/DefaultDownloadFileWriter.kt   |  6 +++++-
+ .../support/utils/DefaultDownloadFileUtils.kt | 21 ++++++++++++++++++-
+ .../res/xml/feature_downloads_file_paths.xml  |  2 ++
+ 4 files changed, 35 insertions(+), 4 deletions(-)
+
+diff --git a/components/feature/downloads/src/main/java/mozilla/components/feature/downloads/DownloadsFeature.kt b/components/feature/downloads/src/main/java/mozilla/components/feature/downloads/DownloadsFeature.kt
+index 6b97d61dc68b98c500a578df456015420aa27b03..b00016eb79ccb292546eb9fcc816fab0c0ee2174 100644
+--- a/components/feature/downloads/src/main/java/mozilla/components/feature/downloads/DownloadsFeature.kt
++++ b/components/feature/downloads/src/main/java/mozilla/components/feature/downloads/DownloadsFeature.kt
+@@ -118,6 +118,8 @@ class DownloadsFeature(
+     private val downloadManager: DownloadManager = AndroidDownloadManager(applicationContext, store, downloadFileUtils),
+     private val tabId: String? = null,
+     private val fragmentManager: FragmentManager? = null,
++    // Profiles: optional per-container download directory (null result = global location).
++    private val directoryForContext: ((String?) -> String?)? = null,
+     private val promptsStyling: PromptsStyling? = null,
+     private val onDownloadStartedListener: ((String) -> Unit) = {},
+     private val dismissCustomFirstPartyDownloadDialog: () -> Unit = {},
+@@ -193,13 +195,17 @@ class DownloadsFeature(
+                         state.content.download?.let { downloadState ->
+                             previousTab = state
+                             val updatedDownloadState =
+-                                downloadState.copy(directoryPath = downloadFileUtils.currentDownloadLocation)
++                                downloadState.copy(directoryPath = downloadDirectoryFor(state.contextId))
+                             processDownload(state, updatedDownloadState)
+                         }
+                     }
+             }
+     }
+ 
++    // Profiles: per-container directory if provided, else the global download location.
++    private fun downloadDirectoryFor(contextId: String?): String =
++        directoryForContext?.invoke(contextId) ?: downloadFileUtils.currentDownloadLocation
++
+     /** Calls the tryAgain function of the corresponding [DownloadManager] */
+     @Suppress("Unused")
+     fun tryAgain(id: String) {
+@@ -341,7 +347,7 @@ class DownloadsFeature(
+                     startDownload(download)
+                     useCases.consumeDownload(tab.id, download.id)
+                 } else {
+-                    val updatedDownloadState = download.copy(directoryPath = downloadFileUtils.currentDownloadLocation)
++                    val updatedDownloadState = download.copy(directoryPath = downloadDirectoryFor(tab.contextId))
+                     processDownload(tab, updatedDownloadState)
+                 }
+             } else {
+diff --git a/components/feature/downloads/src/main/java/mozilla/components/feature/downloads/filewriter/DefaultDownloadFileWriter.kt b/components/feature/downloads/src/main/java/mozilla/components/feature/downloads/filewriter/DefaultDownloadFileWriter.kt
+index ef5d8d298dd81fd52ec67eb35485e8d54d55fa7b..bbc7cab83e2feb1d5a3588c3952d8d8ca54f48fa 100644
+--- a/components/feature/downloads/src/main/java/mozilla/components/feature/downloads/filewriter/DefaultDownloadFileWriter.kt
++++ b/components/feature/downloads/src/main/java/mozilla/components/feature/downloads/filewriter/DefaultDownloadFileWriter.kt
+@@ -53,7 +53,11 @@ class DefaultDownloadFileWriter(
+ 
+         val isUri = downloadWithUniqueFileName.directoryPath.startsWith(DownloadUtils.SCHEME_CONTENT)
+ 
+-        if (shouldUseScopedStorage || isUri) {
++        // Profiles: app-private paths (under filesDir) are plain files, never SAF/MediaStore.
++        val isAppPrivate = File(downloadWithUniqueFileName.directoryPath).absolutePath
++            .startsWith(context.filesDir.absolutePath + File.separator)
++
++        if (!isAppPrivate && (shouldUseScopedStorage || isUri)) {
+             useFileStreamScopedStorage(downloadWithUniqueFileName, append, block, onUpdateState)
+         } else {
+             useFileStreamLegacy(downloadWithUniqueFileName, append, block)
+diff --git a/components/support/utils/src/main/java/mozilla/components/support/utils/DefaultDownloadFileUtils.kt b/components/support/utils/src/main/java/mozilla/components/support/utils/DefaultDownloadFileUtils.kt
+index 91ff6bec3bcd6b30a57fac4f0cb2895788b824b5..9181fe3ec7008d166c0eb8bcaedac8d2681905e4 100644
+--- a/components/support/utils/src/main/java/mozilla/components/support/utils/DefaultDownloadFileUtils.kt
++++ b/components/support/utils/src/main/java/mozilla/components/support/utils/DefaultDownloadFileUtils.kt
+@@ -137,6 +137,12 @@ class DefaultDownloadFileUtils(
+     override fun findDownloadFileUri(fileName: String?, directoryPath: String): Uri? {
+         if (fileName == null) return null
+ 
++        // Profiles: app-private files are plain files.
++        if (isAppPrivatePath(directoryPath)) {
++            val file = File(directoryPath, fileName)
++            return if (file.exists()) Uri.fromFile(file) else null
++        }
++
+         return try {
+             if (directoryPath.isDefaultDownloadDirectory()) {
+                 findInDefaultDownloadDirectory(fileName, directoryPath)
+@@ -227,6 +233,12 @@ class DefaultDownloadFileUtils(
+         fileName: String?,
+         directoryPath: String,
+     ): Boolean {
++        // Profiles: app-private files are deleted directly (no MediaStore involved).
++        if (fileName != null && isAppPrivatePath(directoryPath)) {
++            val file = File(directoryPath, fileName)
++            return file.exists() && file.delete()
++        }
++
+         val fileUri = findDownloadFileUri(fileName, directoryPath) ?: return false
+ 
+         return try {
+@@ -252,6 +264,13 @@ class DefaultDownloadFileUtils(
+         }
+     }
+ 
++    // Profiles: true for paths under filesDir/profiles/ (private per-profile storage).
++    private fun isAppPrivatePath(directoryPath: String): Boolean {
++        if (directoryPath.startsWith(SCHEME_CONTENT)) return false
++        return File(directoryPath).absolutePath
++            .startsWith(File(context.filesDir, "profiles").absolutePath + File.separator)
++    }
++
+     @VisibleForTesting
+     internal fun getFilePathUri(filePath: String): Uri =
+         FileProvider.getUriForFile(
+@@ -340,7 +359,7 @@ class DefaultDownloadFileUtils(
+         val to = File(directoryPath, newName)
+ 
+         val renamed = from.exists() && from.renameTo(to)
+-        if (renamed) {
++        if (renamed && !isAppPrivatePath(directoryPath)) {
+             MediaScannerConnection.scanFile(
+                 context,
+                 arrayOf(from.absolutePath, to.absolutePath),
+diff --git a/components/support/utils/src/main/res/xml/feature_downloads_file_paths.xml b/components/support/utils/src/main/res/xml/feature_downloads_file_paths.xml
+index 7b3fcdf3678f820d3fbc37597c8864ed49fe197f..8116d24b8ec2aced49041c33d5af2db6a5507f2a 100644
+--- a/components/support/utils/src/main/res/xml/feature_downloads_file_paths.xml
++++ b/components/support/utils/src/main/res/xml/feature_downloads_file_paths.xml
+@@ -4,6 +4,8 @@
+    - You can obtain one at http://mozilla.org/MPL/2.0/.  -->
+ <paths>
+     <external-path name="Download" path="." />
++    <!-- Profiles: private per-profile downloads -->
++    <files-path name="profileDownloads" path="profiles/"/>
+     <external-files-path name="externalFilesDownload" path="Download/" />
+ 
+     <cache-path name="mediaShareCache" path="mozac_share_cache"/>

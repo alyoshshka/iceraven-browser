@@ -1,0 +1,179 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: alyoshshka <123838530+alyoshshka@users.noreply.github.com>
+Date: Sat, 14 Nov 2026 17:20:23 +0000
+Subject: [PATCH] Profiles: inherit contextId in popups and new windows; add
+ clearDataForContext
+
+From: alyoshshka <123838530+alyoshshka@users.noreply.github.com>
+
+---
+ .../browser/engine/gecko/GeckoEngine.kt       | 15 ++++++++++++
+ .../engine/gecko/GeckoEngineSession.kt        |  4 +++-
+ .../engine/gecko/GeckoEngineSessionTest.kt    | 22 +++++++++++++++++
+ .../concept/engine/DataCleanable.kt           | 10 ++++++++
+ .../components/feature/tabs/WindowFeature.kt  |  2 ++
+ .../feature/tabs/WindowFeatureTest.kt         | 24 +++++++++++++++++++
+ 6 files changed, 76 insertions(+), 1 deletion(-)
+
+diff --git a/components/browser/engine-gecko/src/main/java/mozilla/components/browser/engine/gecko/GeckoEngine.kt b/components/browser/engine-gecko/src/main/java/mozilla/components/browser/engine/gecko/GeckoEngine.kt
+index 5e621c92fb719253890321e21e2e4ae96c3e06d6..49bfac9e763e9dee2d5077eaad09b712732b247d 100644
+--- a/components/browser/engine-gecko/src/main/java/mozilla/components/browser/engine/gecko/GeckoEngine.kt
++++ b/components/browser/engine-gecko/src/main/java/mozilla/components/browser/engine/gecko/GeckoEngine.kt
+@@ -974,6 +974,21 @@ class GeckoEngine(
+         }
+     }
+ 
++    // Profiles: see [DataCleanable.clearDataForContext].
++    override fun clearDataForContext(
++        contextId: String,
++        onSuccess: () -> Unit,
++        onError: (Throwable) -> Unit,
++    ) {
++        try {
++            // GeckoView 160 returns void; completion is not observable.
++            runtime.storageController.clearDataForSessionContext(contextId)
++            onSuccess()
++        } catch (e: Exception) {
++            onError(e)
++        }
++    }
++
+     /** See [Engine.clearData]. */
+     override fun clearData(
+         data: Engine.BrowsingData,
+diff --git a/components/browser/engine-gecko/src/main/java/mozilla/components/browser/engine/gecko/GeckoEngineSession.kt b/components/browser/engine-gecko/src/main/java/mozilla/components/browser/engine/gecko/GeckoEngineSession.kt
+index 4d66c2f501839505a0c5c9cfe0c5ee29ed08ace3..7f20389e1bd08d961720191b45ffb2118e994d55 100644
+--- a/components/browser/engine-gecko/src/main/java/mozilla/components/browser/engine/gecko/GeckoEngineSession.kt
++++ b/components/browser/engine-gecko/src/main/java/mozilla/components/browser/engine/gecko/GeckoEngineSession.kt
+@@ -98,7 +98,7 @@ class GeckoEngineSession(
+     private val runtime: GeckoRuntime,
+     private val privateMode: Boolean = false,
+     private val defaultSettings: Settings? = null,
+-    contextId: String? = null,
++    private val contextId: String? = null,
+     private val geckoSessionProvider: () -> GeckoSession = {
+         val settings = GeckoSessionSettings.Builder().usePrivateMode(privateMode).contextId(contextId).build()
+         GeckoSession(settings)
+@@ -1136,6 +1136,8 @@ class GeckoEngineSession(
+                         runtime = runtime,
+                         privateMode = privateMode,
+                         defaultSettings = defaultSettings,
++                        // Profiles: new windows inherit the opener's contextId (cookie jar).
++                        contextId = contextId,
+                         openGeckoSession = false,
+                     )
+                 notifyObservers {
+diff --git a/components/browser/engine-gecko/src/test/java/mozilla/components/browser/engine/gecko/GeckoEngineSessionTest.kt b/components/browser/engine-gecko/src/test/java/mozilla/components/browser/engine/gecko/GeckoEngineSessionTest.kt
+index 24056983a626a15b914481fe9e5fc9acf0e055a8..43ec75bd3cecb5eec991dd2e04917f1314984ed7 100644
+--- a/components/browser/engine-gecko/src/test/java/mozilla/components/browser/engine/gecko/GeckoEngineSessionTest.kt
++++ b/components/browser/engine-gecko/src/test/java/mozilla/components/browser/engine/gecko/GeckoEngineSessionTest.kt
+@@ -4698,6 +4698,28 @@ class GeckoEngineSessionTest {
+         assertEquals(WindowRequest.Type.OPEN, receivedWindowRequest.type)
+     }
+ 
++    @Test
++    fun `onNewSession keeps the contextId of the opener`() {
++        val engineSession =
++            GeckoEngineSession(mock(), contextId = "work", geckoSessionProvider = geckoSessionProvider)
++
++        captureDelegates()
++
++        var created: GeckoEngineSession? = null
++        engineSession.register(
++            object : EngineSession.Observer {
++                override fun onWindowRequest(windowRequest: WindowRequest) {
++                    created = windowRequest.prepare() as? GeckoEngineSession
++                }
++            },
++        )
++
++        navigationDelegate.value.onNewSession(mock(), "mozilla.org")
++
++        assertNotNull(created)
++        assertEquals("work", created!!.geckoSession.settings.contextId)
++    }
++
+     @Test
+     fun `onCloseRequest creates window request`() {
+         val engineSession = GeckoEngineSession(mock(), geckoSessionProvider = geckoSessionProvider)
+diff --git a/components/concept/engine/src/main/java/mozilla/components/concept/engine/DataCleanable.kt b/components/concept/engine/src/main/java/mozilla/components/concept/engine/DataCleanable.kt
+index a1adc388f275398074af8cd8e0685ba20314333d..9d9f974806075d9fd1ab43b06ab4b9755feaf86c 100644
+--- a/components/concept/engine/src/main/java/mozilla/components/concept/engine/DataCleanable.kt
++++ b/components/concept/engine/src/main/java/mozilla/components/concept/engine/DataCleanable.kt
+@@ -21,4 +21,14 @@ interface DataCleanable {
+         onSuccess: (() -> Unit) = {},
+         onError: ((Throwable) -> Unit) = {},
+     ): Unit = onError(UnsupportedOperationException("Clearing browsing data is not supported."))
++
++    // Profiles: clears all data (cookies, storage, cache) of one container / contextId.
++    /**
++     * Clears all data belonging to the given container ([contextId]).
++     */
++    fun clearDataForContext(
++        contextId: String,
++        onSuccess: (() -> Unit) = {},
++        onError: ((Throwable) -> Unit) = {},
++    ): Unit = onError(UnsupportedOperationException("Clearing container data is not supported."))
+ }
+diff --git a/components/feature/tabs/src/main/java/mozilla/components/feature/tabs/WindowFeature.kt b/components/feature/tabs/src/main/java/mozilla/components/feature/tabs/WindowFeature.kt
+index 7e54169967dca8f2109b6272b199523c179d821c..e83460f31926241790573617f3af9cc64545747c 100644
+--- a/components/feature/tabs/src/main/java/mozilla/components/feature/tabs/WindowFeature.kt
++++ b/components/feature/tabs/src/main/java/mozilla/components/feature/tabs/WindowFeature.kt
+@@ -52,6 +52,8 @@ class WindowFeature(
+                                         parentId = state.id,
+                                         engineSession = windowRequest.prepare(),
+                                         private = state.content.private,
++                                        // Profiles: popups/_blank tabs stay in the opener's profile.
++                                        contextId = state.contextId,
+                                     )
+                                     windowRequest.start()
+                                 }
+diff --git a/components/feature/tabs/src/test/java/mozilla/components/feature/tabs/WindowFeatureTest.kt b/components/feature/tabs/src/test/java/mozilla/components/feature/tabs/WindowFeatureTest.kt
+index 0bb0226b088e90d3dd01892fdc4a65dd56d90494..a387ef2206d9dce2f2631ad761ad831e8b1d7f59 100644
+--- a/components/feature/tabs/src/test/java/mozilla/components/feature/tabs/WindowFeatureTest.kt
++++ b/components/feature/tabs/src/test/java/mozilla/components/feature/tabs/WindowFeatureTest.kt
+@@ -34,6 +34,7 @@ class WindowFeatureTest {
+     private lateinit var removeTabUseCase: TabsUseCases.RemoveTabUseCase
+     private val tabId = "test-tab"
+     private val privateTabId = "test-tab-private"
++    private val profileTabId = "test-tab-profile"
+     private val testDispatcher = StandardTestDispatcher()
+     private val captureActionsMiddleware = CaptureActionsMiddleware<BrowserState, BrowserAction>()
+ 
+@@ -52,6 +53,7 @@ class WindowFeatureTest {
+                                     engineSession = engineSession,
+                                 ),
+                                 createTab(id = privateTabId, url = "https://www.mozilla.org", private = true),
++                                createTab(id = profileTabId, url = "https://www.mozilla.org", contextId = "work"),
+                             ),
+                         selectedTabId = tabId,
+                     ),
+@@ -90,6 +92,28 @@ class WindowFeatureTest {
+             }
+         }
+ 
++    @Test
++    fun `window opened from a profile tab inherits its contextId`() =
++        runTest(testDispatcher) {
++            val feature = WindowFeature(store, tabsUseCases, testDispatcher)
++            feature.start()
++            testDispatcher.scheduler.advanceUntilIdle()
++
++            val windowRequest: WindowRequest = mock()
++            whenever(windowRequest.type).thenReturn(WindowRequest.Type.OPEN)
++            whenever(windowRequest.url).thenReturn("https://www.firefox.com")
++
++            store.dispatch(ContentAction.UpdateWindowRequestAction(profileTabId, windowRequest))
++            testDispatcher.scheduler.advanceUntilIdle()
++
++            verify(addTabUseCase).invoke(
++                url = "about:blank",
++                selectTab = true,
++                parentId = profileTabId,
++                contextId = "work",
++            )
++        }
++
+     @Test
+     fun `handles request to open private window`() =
+         runTest(testDispatcher) {
