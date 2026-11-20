@@ -38,6 +38,7 @@ import mozilla.components.compose.base.snackbar.SnackbarVisuals
 import mozilla.components.compose.base.snackbar.displaySnackbar
 import mozilla.components.compose.draggable.ItemInteractionHandler
 import mozilla.components.compose.draggable.NoOpItemInteractionHandler
+import org.mozilla.fenix.profiles.ProfileTabsFilterChip
 import org.mozilla.fenix.tabstray.TabsTrayTestTag
 import org.mozilla.fenix.tabstray.data.TabsTrayItem
 import org.mozilla.fenix.tabstray.data.createTab
@@ -272,6 +273,17 @@ fun TabsTray(
                             },
                             onTabGroupOnboardingDismiss = onTabGroupOnboardingDismiss,
                             onTabGroupOnboardingShown = onTabGroupOnboardingShown,
+                            profileFilter = if (state.tabProfileIds.size > 1) {
+                                {
+                                    ProfileTabsFilterChip(
+                                        profileIds = state.tabProfileIds,
+                                        selected = state.selectedProfile,
+                                        onSelected = { onAction(TabsTrayAction.ProfileFilterSelected(it)) },
+                                    )
+                                }
+                            } else {
+                                null
+                            },
                             trackersBlockedCount = trackersBlockedCount,
                             focusEnabled = state.normalTabsState.itemFocusIndicatorEnabled,
                             onPrivacyReportTapped = onPrivacyReportTapped,
