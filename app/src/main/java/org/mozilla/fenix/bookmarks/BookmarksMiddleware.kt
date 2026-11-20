@@ -73,6 +73,7 @@ internal class BookmarksMiddleware(
     private val navigateToImportDialog: () -> Unit,
     private val shareBookmarks: (List<BookmarkItem.Bookmark>) -> Unit = {},
     private val showTabsTray: (isPrivateMode: Boolean) -> Unit,
+    private val openInProfile: (url: String) -> Unit = {}, // Profiles
     private val resolveFolderTitle: (BookmarkNode) -> String,
     private val getBrowsingMode: () -> BrowsingMode,
     private val saveBookmarkSortOrder: suspend (BookmarksListSortOrder) -> Unit,
@@ -720,6 +721,11 @@ internal class BookmarksMiddleware(
             is BookmarksListMenuAction.Bookmark.OpenInPrivateTabClicked -> {
                 addNewTabUseCase(url = bookmark.url, private = true)
                 showTabsTray(true)
+            }
+
+            // Profiles: pick the profile in a dialog, which opens the tab.
+            is BookmarksListMenuAction.Bookmark.OpenInProfileClicked -> {
+                openInProfile(bookmark.url)
             }
 
             // folder menu actions

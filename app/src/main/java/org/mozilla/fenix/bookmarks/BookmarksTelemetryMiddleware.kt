@@ -172,6 +172,7 @@ internal class BookmarksTelemetryMiddleware : Middleware<BookmarksState, Bookmar
                 recordListDeleteMetrics()
             }
             is BookmarksListMenuAction.Bookmark.EditClicked,
+            is BookmarksListMenuAction.Bookmark.OpenInProfileClicked, // Profiles
             is BookmarksListMenuAction.Bookmark.SelectClicked -> Unit
         }
     }
