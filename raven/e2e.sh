@@ -3,15 +3,24 @@
 #
 #   raven/e2e.sh <apk> <adb-serial>        (serial may also come from $ANDROID_SERIAL / $ADB_SERIAL)
 #
-# Checks: install+launch (incl. first-run onboarding), create profile "Work", cookie isolation (httpbin.org),
-# app-only downloads, external-link chooser ("Open link in": Always rule, site-rule removal, setting off),
-# no crash in logcat. Page content is read from the uiautomator tree (GeckoView exposes it) via httpbin /cookies. Every check prints PASS/FAIL; exit status is non-zero if any failed.
+# Checks: install+launch (incl. first-run onboarding), create profile "Work", cookie isolation, app-only downloads,
+# external-link chooser ("Open link in": Always rule, site-rule removal, setting off), no crash in logcat.
+# Web content comes from a tiny local server (raven/e2e-server.py) that this script starts on the machine running adb and
+# kills on exit. It serves raven/e2e-page.html (text/html) and /e2e.txt (attachment). The device reaches it at $RAVEN_E2E_HOST.
+# The page mirrors the cookie `who` into document.title, the URL fragment (#who_<v>, shown in the native toolbar) and the body, so
+# the value is readable even when GeckoView does not expose page text to uiautomator (true on the CI emulator).
+# Every check prints PASS/FAIL; exit status is non-zero if any failed.
 # Output (screenshots, UI dumps, logcat) goes to $RAVEN_E2E_OUT (default ./e2e-out).
 #
 # Env:
 #   RAVEN_E2E_WIPE=1   uninstall the app first (default in CI) so every run starts from a fresh install.
 #                      Without it an existing install is updated in place and keeps its data/profiles.
 #   RAVEN_E2E_LINK_CHOOSER=1  also run the external-link chooser checks.
+#   RAVEN_E2E_DISABLE_OTHER_BROWSERS=1  `pm disable-user` Chrome etc. so external links cannot land in another browser (CI).
+#   RAVEN_E2E_HOST=<host>  address of the machine running this script as seen from the device (default 10.0.2.2, the Android
+#                      emulator's alias for the host loopback; use the host's LAN/bridge address for a real device or Waydroid).
+#   RAVEN_E2E_SETTLE=<s>  after boot, wait this long for the launcher to settle (CI sets 20; avoids "isn't responding" ANRs).
+#   RAVEN_E2E_USE_ROOT=1      on rooted emulators, open Work tabs via a contextId intent instead of the menu.
 #
 # Tested layouts: any screen size/density; text is matched from `uiautomator dump`, never by coordinates
 # (except swipe gestures for scrolling, derived from `wm size`).
@@ -35,19 +44,42 @@ A() { adb -s "$SERIAL" "$@"; }
 sh_() { A shell "$@"; }
 log() { echo "[e2e] $*"; }
 
+# ---- local test server ---------------------------------------------------------------------------
+HOST=${RAVEN_E2E_HOST:-10.0.2.2}
+SRV_PID=""
+cleanup() { [ -n "$SRV_PID" ] && kill "$SRV_PID" 2>/dev/null; rm -f "$PORT_FILE"; }
+PORT_FILE=$(mktemp)
+trap cleanup EXIT
+trap 'exit 130' INT TERM
+python3 -I "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/e2e-server.py" "$PORT_FILE" &
+SRV_PID=$!
+for _ in $(seq 50); do [ -s "$PORT_FILE" ] && break; sleep 0.1; done
+PORT=$(cat "$PORT_FILE")
+[ -n "$PORT" ] || { echo "test server did not start" >&2; exit 2; }
+BASE_URL="http://$HOST:$PORT"
+
 # ---- results -------------------------------------------------------------------------------------
 pass() { echo "PASS: $1"; }
 fail() { echo "FAIL: $1${2:+ ($2)}"; FAILS=$((FAILS + 1)); shot "fail-$(echo "$1" | tr -c 'A-Za-z0-9' _)"; }
 shot() { STEP=$((STEP + 1)); A exec-out screencap -p > "$OUT/$(printf '%02d' $STEP)-$1.png" 2>/dev/null || true; }
 
 # ---- UI helpers ----------------------------------------------------------------------------------
+# Android's "Set <app> as your default browser app?" role dialog (raised by the browser's onboarding) is often
+# invisible to `uiautomator dump`, so detect it by window focus and back out of it before every dump.
+dismiss_role_dialog() {
+  if sh_ dumpsys window 2>/dev/null | grep -m1 -E 'mCurrentFocus|mFocusedWindow' | grep -qE 'RequestRoleActivity|permissioncontroller'; then
+    log "default-browser role dialog in focus; pressing Back"; sh_ input keyevent 4; sleep 1
+  fi
+}
+
 dump() { # refresh $UI, retrying: uiautomator fails while animations/idle state are unsettled
   local i
+  dismiss_role_dialog
   for i in 1 2 3 4; do
     if sh_ uiautomator dump /sdcard/raven-ui.xml >/dev/null 2>&1 && A exec-out cat /sdcard/raven-ui.xml > "$UI" 2>/dev/null && [ -s "$UI" ]; then return 0; fi
     sleep 1
   done
-  : > "$UI"; return 1
+  log "uiautomator dump failed 4 times"; : > "$UI"; return 1
 }
 
 # ui_query <mode> <regex>: mode "center" prints "x y" of the first node whose text/content-desc matches,
@@ -109,12 +141,27 @@ sys.exit(1)
 PY
 }
 
+# System dialogs ("Pixel Launcher isn't responding", "X keeps stopping") can cover the screen on a slow emulator.
+# Looks at the current $UI dump; taps "Wait" on ANR dialogs, else closes the dialog. Returns 0 if one was handled.
+dismiss_system_dialogs() {
+  local xy
+  # First-run onboarding can appear long after launch on a slow emulator; tap through it wherever we are waiting.
+  if ui_query has 'Welcome to|default browser|Set as default' \
+     && xy=$(ui_query center '^(Continue|Not now|Skip|Maybe later|No thanks|Cancel)$'); then
+    log "onboarding on screen; dismissing"; tap_xy ${xy}; sleep 2; return 0
+  fi
+  ui_query has "isn.t responding|keeps stopping|has stopped" || return 1
+  log "system dialog on screen; dismissing"
+  if xy=$(ui_query center '^Wait$'); then :; elif xy=$(ui_query center '^(Close app|OK|Close)$'); then :; else return 1; fi
+  tap_xy ${xy}; sleep 1; return 0
+}
+
 has_text() { dump; ui_query has "$1"; }
 
 wait_for_text() { # <regex> [timeout s]
   local end=$((SECONDS + ${2:-20}))
   while [ $SECONDS -lt "$end" ]; do
-    dump && ui_query has "$1" && return 0
+    dump && { ui_query has "$1" && return 0; dismiss_system_dialogs && continue; }
     sleep 1
   done
   return 1
@@ -122,7 +169,7 @@ wait_for_text() { # <regex> [timeout s]
 
 wait_gone() { # <regex> [timeout s]: wait until no node matches
   local end=$((SECONDS + ${2:-10}))
-  while [ $SECONDS -lt "$end" ]; do dump && ! ui_query has "$1" && return 0; sleep 1; done
+  while [ $SECONDS -lt "$end" ]; do dump && { dismiss_system_dialogs && continue; ! ui_query has "$1" && return 0; }; sleep 1; done
   return 1
 }
 
@@ -149,6 +196,7 @@ tap_text() { # <regex> [timeout s]: wait, then tap the node's center
   while [ $SECONDS -lt "$end" ]; do
     dump
     if xy=$(ui_query center "$1"); then tap_xy ${xy}; sleep 1; return 0; fi
+    dismiss_system_dialogs && continue
     sleep 1
   done
   log "tap_text: '$1' not found"; return 1
@@ -184,18 +232,34 @@ dismiss_noise() {
   done
 }
 
+# Wait (up to $1 s) for the browser UI, tapping through first-run onboarding on the way. On a cold emulator the
+# onboarding appears many seconds after launch (the first dump can be a blank window), so one early pass is not enough.
+wait_browser_ready() {
+  local end=$((SECONDS + ${1:-120})) xy ok=0
+  while [ $SECONDS -lt "$end" ]; do
+    dump
+    dismiss_system_dialogs && continue
+    if xy=$(ui_query center '^(Continue|Not now|Skip|Maybe later|No thanks|Cancel)$'); then tap_xy ${xy}; ok=0; sleep 2; continue; fi
+    if ui_query has 'Search or enter address|^New tab$|^Menu$|Tabs Open'; then ok=$((ok + 1)); [ "$ok" -ge 2 ] && return 0; else ok=0; fi
+    sleep 2
+  done
+  return 1
+}
+
 # ---- intents -------------------------------------------------------------------------------------
 view_default() { # open URL in a Default-profile tab (never ask which profile)
-  sh_ am start -a android.intent.action.VIEW -d "$1" --ez "$EX_SKIP" true -n "$PKG/$IRA" >/dev/null
+  sh_ am start -a android.intent.action.VIEW -d "'$1'" --ez "$EX_SKIP" true -n "$PKG/$IRA" >/dev/null
 }
 view_ctx() { # <url> <contextId>
-  sh_ am start -a android.intent.action.VIEW -d "$1" --es "$EX_CTX" "$2" --ez "$EX_DESK" false --ez "$EX_SKIP" true -n "$PKG/$IRA" >/dev/null
+  sh_ am start -a android.intent.action.VIEW -d "'$1'" --es "$EX_CTX" "$2" --ez "$EX_DESK" false --ez "$EX_SKIP" true -n "$PKG/$IRA" >/dev/null
 }
 
 # Work profile's contextId, if the device allows reading app data (rooted emulator images, not release builds
 # on a normal phone). Prints the id or nothing.
 discover_ctx() {
   local xml
+  # The menu path ("Open in profile") is the one validated on real devices; the contextId shortcut is opt-in.
+  [ "${RAVEN_E2E_USE_ROOT:-0}" = 1 ] || return 0
   # `adb root` restarts adbd (and drops the connection on some hosts), so only do it where the build allows it.
   if [ "$(sh_ getprop ro.debuggable | tr -d '\r')" = 1 ] && [ "$(sh_ id -u | tr -d '\r')" != 0 ]; then
     A root >/dev/null 2>&1; A wait-for-device; sleep 2
@@ -208,13 +272,13 @@ print(m.group(1) if m else "")'
 }
 
 # ---- page content --------------------------------------------------------------------------------
-# GeckoView exposes page text to uiautomator as a node (verified on Waydroid), so we read the JSON that
-# https://httpbin.org/cookies returns: {"cookies": {"who": "<value>"}}. READ_URL carries a nonce so every read
-# is a fresh navigation. read_page_value prints "who=<value>" or "none" (empty cookie jar).
-READ_BASE="https://httpbin.org/cookies"
+# The test page ($BASE_URL/e2e-page.html) stores ?set=<v> as cookie who=<v> and shows the current value as who_<v> / who_none in
+# document.title, the URL fragment (native toolbar) and the body. read_page_value prints "who=<value>" or "none".
+# A nonce in the query makes every read a fresh navigation. Sources, in order: URL fragment, tab title, page text.
 nonce() { echo "n$RANDOM$RANDOM"; }
-read_url() { echo "$READ_BASE?$(nonce)"; }
-cookie_in_ui() { # prints who=<v> / none if a /cookies JSON body is on screen
+read_url() { echo "$BASE_URL/e2e-page.html?n=$(nonce)"; }
+set_url() { echo "$BASE_URL/e2e-page.html?set=$1&n=$(nonce)"; } # <value>
+cookie_in_ui() { # prints who=<v> / none if the page value is on screen
   python3 -I - "$UI" <<'PY'
 import re, sys
 import xml.etree.ElementTree as ET
@@ -222,25 +286,53 @@ try:
     root = ET.parse(sys.argv[1]).getroot()
 except Exception:
     sys.exit(1)
-for n in root.iter("node"):
-    t = n.get("text", "")
-    if '"cookies"' in t:
-        m = re.search(r'"who":\s*"([^"]*)"', t)
-        print("who=" + m.group(1) if m else "none"); sys.exit(0)
+def out(v):
+    print("none" if v == "none" else "who=" + v); sys.exit(0)
+nodes = list(root.iter("node"))
+# 1. URL fragment in the toolbar's URL bar (content-desc "<url>. Search or enter address"); only the selected tab
+for n in nodes:
+    d = n.get("content-desc", "")
+    m = re.search(r'#who_([A-Za-z0-9_%-]+)\.?\s*(?:Search or enter address)?', d) if "Search or enter address" in d else None
+    if m: out(m.group(1))
+# 2. title of the selected tab (tab strip/tray lists every tab, so only selected="true" nodes count)
+for n in nodes:
+    if n.get("selected") == "true":
+        for t in (n.get("text", ""), n.get("content-desc", "")):
+            m = re.search(r'(?:^|\s)who_([A-Za-z0-9_%-]+)\s*$', t.strip())
+            if m: out(m.group(1))
+# 3. page text (last exact match in document order; the page body is drawn after the toolbar/tab strip)
+last = None
+for n in nodes:
+    m = re.fullmatch(r'who_([A-Za-z0-9_%-]+)', n.get("text", "").strip())
+    if m: last = m.group(1)
+if last: out(last)
 sys.exit(1)
 PY
 }
-read_page_value() { # poll up to $1 s for the cookie JSON of the selected tab
-  local end=$((SECONDS + ${1:-40})) v
+# wait_value <who=..|none> [timeout]: poll until the selected tab shows exactly that value (i.e. the set page has really loaded)
+wait_value() {
+  local end=$((SECONDS + ${2:-40}))
+  while [ $SECONDS -lt "$end" ]; do
+    dump; [ "$(cookie_in_ui)" = "$1" ] && return 0
+    dismiss_system_dialogs && continue
+    sleep 2
+  done
+  return 1
+}
+read_page_value() { # poll up to $1 s for the page value of the selected tab
+  local end=$((SECONDS + ${1:-40})) v xy
   while [ $SECONDS -lt "$end" ]; do
     dump
     v=$(cookie_in_ui) && { echo "$v"; return 0; }
+    dismiss_system_dialogs && continue
+    # first-run onboarding can still pop up late on a cold emulator
+    if xy=$(ui_query center '^(Continue|Not now|Skip)$'); then tap_xy ${xy}; fi
     sleep 2
   done
   shot page-not-readable
   return 1
 }
-fire_read() { # <default|ctx-id|-> : open a fresh cookie page, wait for the load, print the value
+fire_read() { # <default|ctx-id|-> : open a fresh read page, wait for the load, print the value
   local url; url=$(read_url)
   if [ "$1" = default ]; then view_default "$url"; else view_ctx "$url" "$1"; fi
   sleep 4; read_page_value 40
@@ -272,7 +364,7 @@ check_install_launch() {
   local end=$((SECONDS + 40))
   while [ $SECONDS -lt "$end" ]; do
     if sh_ dumpsys window | tr -d '\r' | grep -E 'mCurrentFocus|mFocusedApp' | grep -q "$PKG"; then
-      sleep 3; dismiss_noise; shot launched; pass "$name"; return 0
+      sleep 3; dump; dismiss_system_dialogs; dismiss_noise; wait_browser_ready 60 || log "browser UI not confirmed after launch"; shot launched; pass "$name"; return 0
     fi
     sleep 1
   done
@@ -315,24 +407,25 @@ check_cookie_isolation() {
   local name='cookie isolation between Default and Work' v
   sh_ am force-stop "$PKG"
   WORK_CTX=$(discover_ctx)
-  # 1. Default: set the cookie server-side (the redirect lands on /cookies, which shows it).
-  view_default "https://httpbin.org/cookies/set?who=default"; sleep 6
-  v=$(read_page_value 45) || { fail "$name" "page content not observable in the a11y tree"; return 1; }
+  # 1. Default: set who=default on the local test page.
+  view_default "$(set_url default)"
+  wait_value who=default 60 || { fail "$name" "set page did not load / cookie not set"; return 1; }
+  v=$(fire_read default) || { fail "$name" "page value not observable (neither page text nor URL marker)"; return 1; }
   [ "$v" = 'who=default' ] || { fail "$name" "Default should have who=default, saw $v"; return 1; }
   log "Default sees $v"
-  # 2. Work: set who=work. With a known contextId use a shortcut-style intent; otherwise temporarily set it in
-  #    Default via a non-redirecting Set-Cookie page, hand that very tab to Work through the menu (Work
-  #    re-requests the same URL and gets its own cookie), then restore Default.
-  local setwork='https://httpbin.org/response-headers?Set-Cookie=who%3Dwork%3B%20Path%3D%2F'
+  # 2. Work: set who=work. With a known contextId use a shortcut-style intent; otherwise load ?set=work in Default,
+  #    hand that very tab to Work through the menu (Work re-requests the same URL and gets its own cookie),
+  #    then restore Default to who=default.
+  local setwork; setwork=$(set_url work)
   if [ -n "$WORK_CTX" ]; then
     log "Work contextId discovered; using shortcut-style intents"
-    view_ctx "$setwork" "$WORK_CTX"; sleep 6
+    view_ctx "$setwork" "$WORK_CTX"; wait_value who=work 60 || { fail "$name" "Work set page did not load"; return 1; }
   else
     log "contextId not discoverable; using Menu > More > Open in profile"
-    view_default "$setwork"; sleep 6
+    view_default "$setwork"; wait_value who=work 60 || { fail "$name" "set page did not load"; return 1; }
     open_selected_in_work || { fail "$name" "menu path to Work failed"; shot menu-fail; return 1; }
-    sleep 6
-    view_default "https://httpbin.org/cookies/set?who=default"; sleep 6
+    wait_value who=work 60 || { fail "$name" "Work tab did not load"; return 1; }
+    view_default "$(set_url default)"; wait_value who=default 60 || { fail "$name" "Default restore did not load"; return 1; }
   fi
   # 3. Both profiles still hold their own value.
   v=$(read_default) || { fail "$name" "Default re-read not observable"; return 1; }
@@ -344,20 +437,28 @@ check_cookie_isolation() {
 }
 
 check_downloads_app_only() {
-  local name='downloads stay app-only (not in /sdcard/Download)'
+  local name='downloads stay app-only (not in /sdcard/Download)' i found=0
   sh_ 'rm -f /sdcard/Download/e2e.txt*' 2>/dev/null
-  view_default 'https://httpbin.org/response-headers?Content-Disposition=attachment%3B%20filename%3De2e.txt'
-  if wait_for_text '^Download$' 25; then tap_text '^Download$' 5; else log "no download prompt; assuming it started"; fi
-  sleep 10; shot download
+  view_default "$BASE_URL/e2e.txt"
+  # Fenix asks "Download" / "Cancel" in a bottom sheet; tap it as soon as it shows (up to 25 s).
+  if wait_for_text '^Download$' 25; then tap_text '^Download$' 5; else log "no download prompt within 25 s (may have started directly)"; fi
+  shot download
+  # Wait up to ~90 s for the file to be listed in the in-app Downloads screen (Menu > Downloads), re-checking.
+  for i in 1 2 3 4 5 6; do
+    sh_ am start -n "$PKG/$HOME_ACT" >/dev/null; sleep 2
+    if open_menu && tap_text '^Downloads$' 10 && wait_for_text 'e2e\.txt' 12; then found=1; break; fi
+    shot downloads-retry
+    back; back; sleep 8
+  done
   if sh_ 'ls /sdcard/Download 2>/dev/null' | tr -d '\r' | grep -q '^e2e\.txt'; then
     fail "$name" "e2e.txt leaked into /sdcard/Download"; return 1
   fi
-  # positive proof that the download happened: it is listed in the in-app Downloads screen
-  sh_ am start -n "$PKG/$HOME_ACT" >/dev/null; sleep 2
-  if open_menu && tap_text '^Downloads$' 10 && wait_for_text 'e2e\.txt' 20; then
+  if [ "$found" = 1 ]; then
+    # let it finish: a completed item shows no "Downloading" / progress state
+    wait_gone 'Downloading|Paused|Failed' 30 || true
     shot downloads-list; pass "$name"; back
   else
-    fail "$name" "download not found in the in-app Downloads list (cannot prove it happened)"
+    fail "$name" "download not found in the in-app Downloads list after ~90 s (cannot prove it happened)"
   fi
 }
 
@@ -366,17 +467,17 @@ check_downloads_app_only() {
 view_external() {
   local url=$1 i focus
   home
-  sh_ am start -a android.intent.action.VIEW -d "$url" >/dev/null 2>&1
+  sh_ am start -a android.intent.action.VIEW -d "'$url'" >/dev/null 2>&1
   for i in 1 2 3 4 5 6; do sleep 1; focus=$(sh_ dumpsys window | tr -d '\r' | grep -E 'mCurrentFocus' | head -1); echo "$focus" | grep -q "$PKG" && return 0; done
   log "link went elsewhere (another default browser or a system chooser: ${focus##* }); retrying with -p $PKG"
   home
-  sh_ am start -a android.intent.action.VIEW -d "$url" -p "$PKG" >/dev/null 2>&1
+  sh_ am start -a android.intent.action.VIEW -d "'$url'" -p "$PKG" >/dev/null 2>&1
 }
 
 check_link_chooser() {
   if [ "${RAVEN_E2E_LINK_CHOOSER:-0}" != 1 ]; then echo "SKIP: external-link chooser"; return 0; fi
   local name v
-  local host=httpbin.org
+  local host=$HOST
 
   name='external link shows "Open link in" dialog (Default, Work, Always checkbox)'
   view_external "$(read_url)"
@@ -437,9 +538,17 @@ A wait-for-device
 for _ in $(seq 60); do [ "$(sh_ getprop sys.boot_completed | tr -d '\r')" = 1 ] && break; sleep 2; done
 read_size
 sh_ input keyevent KEYCODE_WAKEUP; sh_ wm dismiss-keyguard >/dev/null 2>&1 || true
+sh_ input keyevent 82 >/dev/null 2>&1 || true
+if [ "${RAVEN_E2E_SETTLE:-0}" -gt 0 ] 2>/dev/null; then log "settling for ${RAVEN_E2E_SETTLE}s"; sleep "$RAVEN_E2E_SETTLE"; fi
 for k in window_animation_scale transition_animation_scale animator_duration_scale; do sh_ settings put global "$k" 0 >/dev/null 2>&1 || true; done
 # Best effort: ask Android to expose accessibility content (helps if GeckoView only builds its tree then).
 sh_ settings put secure accessibility_enabled 1 >/dev/null 2>&1 || true
+if [ "${RAVEN_E2E_DISABLE_OTHER_BROWSERS:-0}" = 1 ]; then
+  # CI emulator images ship Chrome, which would catch external VIEW intents (FirstRunActivity).
+  for p in com.android.chrome com.google.android.apps.chrome com.chrome.beta; do
+    if sh_ pm path "$p" 2>/dev/null | grep -q package:; then log "disabling $p"; sh_ pm disable-user --user 0 "$p" >/dev/null 2>&1 || sh_ pm disable "$p" >/dev/null 2>&1 || true; fi
+  done
+fi
 A logcat -c
 
 check_install_launch && {

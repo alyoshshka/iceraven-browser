@@ -6,6 +6,11 @@ on:
   pull_request:
     branches: [raven]
   workflow_dispatch:
+    inputs:
+      apk_run_id:
+        description: 'Optional run id: skip Build and run only the emulator e2e on the raven-apks artifact of that run'
+        required: false
+        default: ''
   schedule:
     - cron: '17 4 * * *'
 
@@ -32,7 +37,7 @@ jobs:
 
   build:
     name: Build
-    if: github.event_name != 'schedule'
+    if: github.event_name != 'schedule' && inputs.apk_run_id == ''
     runs-on: ubuntu-latest
     timeout-minutes: 150
     permissions:
@@ -82,16 +87,21 @@ jobs:
   e2e:
     name: Emulator e2e
     needs: build
+    # Build is skipped when apk_run_id is given; then run e2e on that run's artifact.
+    if: ${{ !cancelled() && github.event_name != 'schedule' && (needs.build.result == 'success' || (needs.build.result == 'skipped' && inputs.apk_run_id != '')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     permissions:
       contents: read
+      actions: read
     steps:
       - uses: actions/checkout@v7
       - uses: actions/download-artifact@v5
         with:
           name: raven-apks
           path: apks
+          run-id: ${{ inputs.apk_run_id || github.run_id }}
+          github-token: ${{ github.token }}
       - name: Enable KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -104,14 +114,19 @@ jobs:
         with:
           api-level: 34
           arch: x86_64
-          target: google_apis
+          # Plain AOSP image: no Google Play services (crashed and raised system dialogs at boot) and no Chrome.
+          target: default
           profile: pixel_6
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -memory 4096
-          script: raven/e2e.sh "${{ env.APK }}" emulator-5554
+          # One retry from a fresh install: emulator UI runs are occasionally disturbed at boot.
+          script: raven/e2e.sh "${{ env.APK }}" emulator-5554 || { echo "e2e attempt 1 failed; retrying once"; RAVEN_E2E_OUT="$RAVEN_E2E_OUT/retry" raven/e2e.sh "${{ env.APK }}" emulator-5554; }
         env:
           RAVEN_E2E_OUT: ${{ github.workspace }}/e2e-out
           RAVEN_E2E_WIPE: '1'
+          RAVEN_E2E_LINK_CHOOSER: '1'
+          RAVEN_E2E_DISABLE_OTHER_BROWSERS: '1'
+          RAVEN_E2E_SETTLE: '20'
       - uses: actions/upload-artifact@v5
         if: always()
         with:
@@ -144,7 +159,7 @@ jobs:
 
   sync-upstream:
     name: Sync upstream Iceraven
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.apk_run_id == '')
     runs-on: ubuntu-latest
     permissions:
       contents: write        # push sync/* branches to this repository only
