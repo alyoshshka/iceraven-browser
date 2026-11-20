@@ -45,6 +45,14 @@
     <!-- Main menu and open in profile dialog -->
     <string name="profiles_open_in_profile" translatable="false">Open in profile</string>
     <string name="profiles_manage" translatable="false">Manage profiles</string>
+    <string name="profiles_close" translatable="false">Close</string>
+    <!-- Toolbar profile chip and long-press entry points -->
+    <string name="profiles_chip_description" translatable="false">Profile: %1$s</string>
+    <string name="profiles_open_in_another_profile" translatable="false">Open in another profile</string>
+    <string name="profiles_new_tab_in_profile_title" translatable="false">New tab in profile</string>
+    <string name="profiles_new_tab_in_profile_menu" translatable="false">New tab in profile…</string>
+    <string name="profiles_open_link_in_profile_menu" translatable="false">Open link in profile…</string>
+    <string name="profiles_open_in_profile_menu" translatable="false">Open in profile…</string>
     <string name="profiles_shortcut_label" translatable="false">%1$s (%2$s)</string>
     <!-- Links from other apps -->
     <string name="profiles_open_link_in" translatable="false">Open link in</string>
