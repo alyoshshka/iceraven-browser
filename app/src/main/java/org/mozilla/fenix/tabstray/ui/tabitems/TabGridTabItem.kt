@@ -61,7 +61,7 @@ import org.mozilla.fenix.R
 import org.mozilla.fenix.compose.Favicon
 import org.mozilla.fenix.compose.TabThumbnail
 import org.mozilla.fenix.compose.swipeToDismissFade
-import org.mozilla.fenix.profiles.ProfileDot
+import org.mozilla.fenix.profiles.ProfileTabIcon
 import org.mozilla.fenix.tabstray.TabsTrayTestTag
 import org.mozilla.fenix.tabstray.data.TabsTrayItem
 import org.mozilla.fenix.tabstray.data.createTab
@@ -247,7 +247,7 @@ private fun Header(
 
         // Profiles: dot between the favicon and the title.
         tab.profileColor?.let {
-            ProfileDot(color = Color(it))
+            ProfileTabIcon(icon = tab.profileIcon, color = Color(it))
             Spacer(modifier = Modifier.width(FirefoxTheme.layout.space.static50))
         }
 

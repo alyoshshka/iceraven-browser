@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- This Source Code Form is subject to the terms of the Mozilla Public
+   - License, v. 2.0. If a copy of the MPL was not distributed with this
+   - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
+<!-- Profiles: Firefox container icon "cart" (browser/components/contextualidentity), converted to a vector drawable. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="16"
+    android:viewportHeight="16">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:fillType="evenOdd"
+        android:pathData="M13.45,10.7H4.7c-0.35,0-0.65,0.25-0.65,0.65s0.25,0.65,0.65,0.65h8.75c0.35,0,0.65-0.25,0.65-0.65 C14.25,10.95,13.9,10.7,13.45,10.7z M6.65,15.05c0.65,0,1.35-0.6,1.35-1.35c0-0.65-0.6-1.35-1.35-1.35s-1.35,0.6-1.35,1.35 C5.3,14.5,6,15.05,6.65,15.05z M11.95,15.05c0.65,0,1.35-0.6,1.35-1.35c0-0.65-0.6-1.35-1.35-1.35c-0.75,0-1.35,0.6-1.35,1.35 C10.7,14.5,11.3,15.05,11.95,15.05z M15.75,3.7L15.75,3.7H3.8V3.6L2.85,1.25C2.7,1.1,2.55,0.95,2.3,0.95H0.35C0,0.95,0,1.25,0,1.45 C0,1.75-0.1,2,0.35,2.1h1.35l0.35,0.75l2,6.65c0,0.1,0.1,0.25,0.4,0.25h9.25c0.15,0,0.35-0.1,0.35-0.25L16,4.15C16,4.05,15.9,3.7,15.75,3.7z" />
+</vector>

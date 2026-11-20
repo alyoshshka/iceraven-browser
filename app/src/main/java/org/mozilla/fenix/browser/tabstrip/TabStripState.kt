@@ -61,6 +61,7 @@ data class TabStripItem(
     val isSelected: Boolean,
     val isCloseButtonVisible: Boolean = true,
     val profileColor: Int? = null,
+    val profileIcon: ContainerState.Icon? = null,
 )
 
 /**
@@ -143,5 +144,6 @@ private fun TabSessionState.toTabStripItem(
         isSelected = isSelected,
         isCloseButtonVisible = showCloseButtonOnUnselectedTabs || isSelected,
         profileColor = contextId?.let { containers[it]?.color?.toArgb() }, // Profiles
+        profileIcon = contextId?.let { containers[it]?.icon },
     )
 }

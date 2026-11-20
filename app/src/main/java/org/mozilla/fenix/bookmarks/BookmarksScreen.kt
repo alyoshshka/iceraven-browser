@@ -1285,6 +1285,11 @@ private fun BookmarkListItemMenu(
                 text = Text.Resource(R.string.bookmark_menu_open_in_private_tab_button),
                 onClick = { dispatcher.invoke(BookmarksListMenuAction.Bookmark.OpenInPrivateTabClicked(bookmark)) },
             ),
+            // Profiles
+            MenuItem.TextItem(
+                text = Text.Resource(R.string.profiles_open_in_profile_menu),
+                onClick = { dispatcher.invoke(BookmarksListMenuAction.Bookmark.OpenInProfileClicked(bookmark)) },
+            ),
             MenuItem.TextItem(
                 text = Text.Resource(R.string.bookmark_menu_delete_button),
                 level = MenuItem.FixedItem.Level.Critical,

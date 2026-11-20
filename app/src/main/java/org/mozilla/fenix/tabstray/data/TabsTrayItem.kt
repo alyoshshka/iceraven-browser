@@ -4,6 +4,7 @@
 
 package org.mozilla.fenix.tabstray.data
 
+import mozilla.components.browser.state.state.ContainerState
 import android.graphics.Bitmap
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.asImageBitmap
@@ -62,6 +63,8 @@ sealed interface TabsTrayItem {
         override val isFocused: Boolean,
         // Profiles: ARGB color of the tab's profile, null for the Default profile.
         val profileColor: Int? = null,
+        // Profiles: drawable resource of the tab's profile icon, null for the Default profile.
+        val profileIcon: ContainerState.Icon? = null,
     ) : TabsTrayItem {
         override val isHomepageItem: Boolean = url.equals(ABOUT_HOME_URL, ignoreCase = true)
 
@@ -69,6 +72,7 @@ sealed interface TabsTrayItem {
             tab: TabSessionState,
             isFocused: Boolean = false,
             profileColor: Int? = null,
+            profileIcon: ContainerState.Icon? = null,
         ) : this(
             id = tab.id,
             url = tab.content.url,
@@ -80,6 +84,7 @@ sealed interface TabsTrayItem {
             lastAccess = tab.lastAccess,
             isFocused = isFocused,
             profileColor = profileColor,
+            profileIcon = profileIcon,
         )
 
         /** Constructs a [TabThumbnailImageData] from the given tab data */

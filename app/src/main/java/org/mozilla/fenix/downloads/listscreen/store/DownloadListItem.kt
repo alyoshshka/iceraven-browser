@@ -4,6 +4,7 @@
 
 package org.mozilla.fenix.downloads.listscreen.store
 
+import mozilla.components.browser.state.state.ContainerState
 import androidx.annotation.DrawableRes
 import androidx.annotation.FloatRange
 import androidx.annotation.StringRes
@@ -41,6 +42,7 @@ data class FileItem(
     val profileId: String? = null,
     val profileName: String? = null,
     val profileColor: Int? = null,
+    val profileIcon: ContainerState.Icon? = null,
 ) : DownloadListItem {
 
     /** The icon resource ID associated with this [FileItem]. */

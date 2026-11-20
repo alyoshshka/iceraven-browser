@@ -31,6 +31,9 @@ import org.mozilla.fenix.tabstray.syncedtabs.SyncedTabsListItem
  * @property tabSearchState The state of the tab search feature.
  * @property backStack The navigation history of the Tab Manager feature.
  * @property hasTabDataLoaded Whether the tab data has loaded.
+ * @property selectedProfile Profiles: the profile the normal tabs are filtered to, null for all profiles.
+ * @property tabProfileIds Profiles: the profiles (Default as [org.mozilla.fenix.profiles.ProfileStorage.DEFAULT_ID])
+ *   that own at least one open normal tab, sorted.
  */
 @Immutable
 data class TabsTrayState(
@@ -46,6 +49,8 @@ data class TabsTrayState(
     val tabSearchState: TabSearchState = TabSearchState(),
     val backStack: List<TabManagerNavDestination> = listOf(TabManagerNavDestination.Root),
     val hasTabDataLoaded: Boolean = false,
+    val selectedProfile: String? = null,
+    val tabProfileIds: List<String> = emptyList(),
 ) : State {
 
     /** Drops the last entry of [TabsTrayState.backStack]. If [backStack] only has one entry, no changes occur. */

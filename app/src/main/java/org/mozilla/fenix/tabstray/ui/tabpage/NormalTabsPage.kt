@@ -83,6 +83,7 @@ private val EmptyPageWidth = 170.dp
  * @param onTabGroupOnboardingShown Invoked when the tab group onboarding card is shown to the user.
  * @param onPrivacyReportTapped Invoked when the trackers blocked pill is tapped.
  * @param onEnteringGroupAnimationPlayed Invoked when the group entrance animation is played.
+ * @param profileFilter Profiles: optional profile filter shown above the tabs.
  */
 @Composable
 @Suppress("LongParameterList")
@@ -121,16 +122,18 @@ internal fun NormalTabsPage(
     onTabGroupOnboardingShown: () -> Unit,
     onPrivacyReportTapped: (() -> Unit)? = null,
     onEnteringGroupAnimationPlayed: () -> Unit,
+    profileFilter: (@Composable () -> Unit)? = null,
 ) {
-    if (normalTabsState.items.isNotEmpty() || inactiveTabsState.tabs.isNotEmpty()) {
+    if (normalTabsState.items.isNotEmpty() || inactiveTabsState.tabs.isNotEmpty() || profileFilter != null) {
         var showAutoCloseDialog by remember { mutableStateOf(shouldShowInactiveTabsAutoCloseDialog) }
 
         val optionalInactiveTabsHeader: (@Composable () -> Unit)? =
-            if (inactiveTabsState.tabs.isEmpty()) {
+            if (inactiveTabsState.tabs.isEmpty() && profileFilter == null) {
                 null
             } else {
                 {
-                    InactiveTabsList(
+                    profileFilter?.invoke()
+                    if (inactiveTabsState.tabs.isNotEmpty()) InactiveTabsList(
                         inactiveTabs = inactiveTabsState.tabs,
                         expanded = inactiveTabsState.isExpanded,
                         showAutoCloseDialog = showAutoCloseDialog,
@@ -151,7 +154,7 @@ internal fun NormalTabsPage(
                         onCFRClick = onInactiveTabsCFRClick,
                         onCFRDismiss = onInactiveTabsCFRDismiss,
                     )
-                    if (!tabsTrayConfig.displayTabsInGrid) {
+                    if (inactiveTabsState.tabs.isNotEmpty() && !tabsTrayConfig.displayTabsInGrid) {
                         Spacer(modifier = Modifier.height(FirefoxTheme.layout.space.static200))
                     }
                 }

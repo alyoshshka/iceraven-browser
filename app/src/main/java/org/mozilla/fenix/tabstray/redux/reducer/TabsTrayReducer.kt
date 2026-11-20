@@ -55,6 +55,7 @@ internal object TabsTrayReducer {
 
                 is TabsTrayAction.NavigateBackInvoked -> handleNavigateBack(state)
                 is TabsTrayAction.PageSelected -> state.copy(selectedPage = action.page)
+                is TabsTrayAction.ProfileFilterSelected -> state.copy(selectedProfile = action.profileId)
 
                 // Delegated Actions
                 is TabSearchAction -> TabSearchActionReducer.reduce(state, action)
@@ -247,6 +248,9 @@ internal object TabsTrayReducer {
                         ),
                     tabGroupState = state.tabGroupState.copy(groups = action.tabStorageUpdate.tabGroups),
                     hasTabDataLoaded = true,
+                    tabProfileIds = action.tabStorageUpdate.profileIds,
+                    // The filter ends when its profile no longer has open tabs.
+                    selectedProfile = state.selectedProfile?.takeIf { it in action.tabStorageUpdate.profileIds },
                 )
             is TabsTrayAction.PersistedUiStateUpdateReceived ->
                 state.copy(
