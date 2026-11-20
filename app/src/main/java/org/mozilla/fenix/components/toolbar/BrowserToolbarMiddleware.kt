@@ -141,6 +141,7 @@ import org.mozilla.fenix.components.toolbar.PageEndActionsInteractions.ReaderMod
 import org.mozilla.fenix.components.toolbar.PageOriginInteractions.OriginClicked
 import org.mozilla.fenix.components.toolbar.TabCounterInteractions.AddNewPrivateTab
 import org.mozilla.fenix.components.toolbar.TabCounterInteractions.AddNewTab
+import org.mozilla.fenix.components.toolbar.TabCounterInteractions.AddNewTabInProfile
 import org.mozilla.fenix.components.toolbar.TabCounterInteractions.CloseCurrentTab
 import org.mozilla.fenix.components.toolbar.TabCounterInteractions.TabCounterClicked
 import org.mozilla.fenix.components.toolbar.TabCounterInteractions.TabCounterLongClicked
@@ -157,6 +158,11 @@ import org.mozilla.fenix.tabstray.ext.isActiveDownload
 import org.mozilla.fenix.tabstray.redux.state.Page
 import org.mozilla.fenix.translations.TranslationsEnabledSettings
 import org.mozilla.fenix.utils.Settings
+import org.mozilla.fenix.profiles.OpenInProfileDialogFragment
+import org.mozilla.fenix.profiles.ProfileActionsDialogFragment
+import org.mozilla.fenix.profiles.findFragmentActivity
+import org.mozilla.fenix.profiles.profileToolbarAction
+import org.mozilla.fenix.profiles.toolbarProfileOf
 import org.mozilla.fenix.utils.Stories.hasUrlOfAHomeScreenStory
 import org.mozilla.fenix.utils.Stories.hasUrlOfAStoriesScreenStory
 
@@ -197,6 +203,9 @@ internal sealed class DisplayActions(override val source: Source) : BrowserToolb
 internal sealed class StartPageActions(override val source: Source) : BrowserToolbarEvent {
     data object SiteInfoClicked : StartPageActions(Source.AddressBar.PageStart)
 
+    // Profiles: tap or long-press on the profile chip.
+    data object ProfileClicked : StartPageActions(Source.AddressBar.PageStart)
+
     data object ProxyActivationAnimationFinished : StartPageActions(Source.AddressBar.PageStart)
 }
 
@@ -209,6 +218,9 @@ internal sealed class TabCounterInteractions : BrowserToolbarEvent {
     data class AddNewTab(override val source: Source) : TabCounterInteractions()
 
     data class AddNewPrivateTab(override val source: Source) : TabCounterInteractions()
+
+    // Profiles: "New tab in profile…" from the tab counter menu or the long-press on "+".
+    data class AddNewTabInProfile(override val source: Source) : TabCounterInteractions()
 
     data object CloseCurrentTab : TabCounterInteractions()
 }
@@ -327,6 +339,7 @@ class BrowserToolbarMiddleware(
                 observePageRefreshUpdates(store)
                 observePageTrackingProtectionUpdates(store)
                 observePageSecurityUpdates(store)
+                observeProfileUpdates(store) // Profiles
                 observePermissionHighlightsUpdates(store)
                 observeIPProtectionUpdates(store)
                 observeTabReloadCoverUpdates(store)
@@ -334,6 +347,16 @@ class BrowserToolbarMiddleware(
 
             is StartPageActions.SiteInfoClicked -> {
                 onSiteInfoClicked()
+                next(action)
+            }
+
+            // Profiles: the profile chip shows the actions dialog.
+            is StartPageActions.ProfileClicked -> {
+                val tabId = browserStore.state.selectedTab?.id
+                val fragmentManager = uiContext.findFragmentActivity()?.supportFragmentManager
+                if (tabId != null && fragmentManager != null) {
+                    ProfileActionsDialogFragment.show(fragmentManager, tabId)
+                }
                 next(action)
             }
 
@@ -383,6 +406,12 @@ class BrowserToolbarMiddleware(
             }
             is AddNewPrivateTab -> {
                 openNewTab(Private)
+                next(action)
+            }
+            // Profiles: ask which profile the new tab belongs to.
+            is AddNewTabInProfile -> {
+                uiContext.findFragmentActivity()?.supportFragmentManager
+                    ?.let { OpenInProfileDialogFragment.showForNewTab(it) }
                 next(action)
             }
             is CloseCurrentTab -> {
@@ -785,7 +814,12 @@ class BrowserToolbarMiddleware(
         return listOf(
                 ToolbarActionConfig(ToolbarAction.SiteInfo) {
                     !browserScreenStore.state.readerModeStatus.isActive
-                }
+                },
+                // Profiles: shown for normal tabs of a profile only.
+                ToolbarActionConfig(ToolbarAction.Profile) {
+                    !browserScreenStore.state.readerModeStatus.isActive &&
+                        browserStore.state.toolbarProfileOf(browserStore.state.selectedTab) != null
+                },
             )
             .filter { config ->
                 config.isVisible()
@@ -928,7 +962,7 @@ class BrowserToolbarMiddleware(
     private fun buildTabCounterMenu(source: Source, toolbarPosition: ToolbarPosition) =
         CombinedEventAndMenu(TabCounterLongClicked(source)) {
             val list =
-                listOf(
+                listOfNotNull(
                     BrowserToolbarMenuButton(
                         icon = DrawableResIcon(iconsR.drawable.mozac_ic_plus_24),
                         text = StringResText(tabcounterR.string.mozac_browser_menu_new_tab),
@@ -942,6 +976,13 @@ class BrowserToolbarMiddleware(
                             StringResContentDescription(tabcounterR.string.mozac_browser_menu_new_private_tab),
                         onClick = AddNewPrivateTab(source),
                     ),
+                    // Profiles
+                    BrowserToolbarMenuButton(
+                        icon = DrawableResIcon(iconsR.drawable.mozac_ic_tab_24),
+                        text = StringResText(R.string.profiles_new_tab_in_profile_menu),
+                        contentDescription = StringResContentDescription(R.string.profiles_new_tab_in_profile_menu),
+                        onClick = AddNewTabInProfile(source),
+                    ).takeIf { browsingModeManager.mode == Normal },
                     BrowserToolbarMenuDivider,
                     BrowserToolbarMenuButton(
                         icon = DrawableResIcon(iconsR.drawable.mozac_ic_cross_24),
@@ -1113,6 +1154,18 @@ class BrowserToolbarMiddleware(
         }
     }
 
+    // Profiles: refresh the chip when the selected tab's profile, or the profile itself, changes.
+    private fun observeProfileUpdates(store: Store<BrowserToolbarState, BrowserToolbarAction>) {
+        browserStore.observeWhileActive {
+            distinctUntilChangedBy { state ->
+                state.selectedTab?.let { Triple(it.contextId, it.content.private, state.containers[it.contextId]) }
+            }
+                .collect {
+                    updateStartPageActions(store)
+                }
+        }
+    }
+
     private fun observeAcceptingCancellingPrivateDownloads(store: Store<BrowserToolbarState, BrowserToolbarAction>) {
         browserScreenStore.observeWhileActive {
             distinctUntilChangedBy { it.cancelPrivateDownloadsAccepted }
@@ -1232,6 +1285,7 @@ class BrowserToolbarMiddleware(
         Translate,
         TabCounter,
         SiteInfo,
+        Profile,
         Bookmark,
         EditBookmark,
         Share,
@@ -1272,6 +1326,8 @@ class BrowserToolbarMiddleware(
                         } else {
                             AddNewTab(source)
                         },
+                    // Profiles: long-press picks the profile of the new tab.
+                    onLongClick = if (browsingModeManager.mode == Private) null else AddNewTabInProfile(source),
                 )
 
             ToolbarAction.Back ->
@@ -1454,6 +1510,13 @@ class BrowserToolbarMiddleware(
                     )
                 }
             }
+
+            ToolbarAction.Profile ->
+                profileToolbarAction(
+                    context = uiContext,
+                    profile = browserStore.state.toolbarProfileOf(browserStore.state.selectedTab),
+                    onClick = StartPageActions.ProfileClicked,
+                )
 
             ToolbarAction.Bookmark -> {
                 ActionButtonRes(

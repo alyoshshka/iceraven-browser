@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -42,6 +43,7 @@ import mozilla.components.concept.engine.utils.ABOUT_HOME_URL
 import mozilla.components.browser.state.selector.selectedTab
 import org.mozilla.fenix.tabstray.redux.state.Page
 import mozilla.components.browser.state.selector.findTab
+import mozilla.components.concept.engine.HitResult
 import mozilla.components.browser.state.state.BrowserState
 import mozilla.components.browser.state.state.ContainerState
 import mozilla.components.browser.state.state.SessionState
@@ -162,7 +164,7 @@ private fun ProfileRadioRow(
         Text(
             text = label,
             style = FirefoxTheme.typography.subtitle1,
-            color = FirefoxTheme.colors.textPrimary,
+            color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.padding(start = 12.dp),
         )
     }
@@ -247,6 +249,16 @@ class OpenInProfileDialogFragment : DialogFragment() {
             OpenInProfileDialogFragment().apply { arguments = args }.show(fragmentManager, TAG)
         }
     }
+}
+
+/** The http(s) link a long-pressed element points to (text link or linked image), or null. */
+fun HitResult.profileLinkUrl(): String? {
+    val link = when (this) {
+        is HitResult.UNKNOWN -> src
+        is HitResult.IMAGE_SRC -> uri
+        else -> return null
+    }
+    return link.takeIf { it.startsWith("http://", ignoreCase = true) || it.startsWith("https://", ignoreCase = true) }
 }
 
 /** The activity hosting this context, if any (unwraps context wrappers). */
