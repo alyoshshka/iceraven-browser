@@ -1,0 +1,13 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>e2e</title></head>
+<body><p id="o">e2e</p><script>
+// Test page for raven/e2e.sh. ?set=<v> stores the cookie who=<v>; the current value is mirrored into the
+// title, the URL fragment (visible in the native toolbar) and the body text. The query is kept, so handing the tab to another profile replays it.
+var q = new URLSearchParams(location.search).get('set');
+if (q) document.cookie = 'who=' + encodeURIComponent(q) + '; path=/; max-age=3600';
+var m = document.cookie.match(/(?:^|; )who=([^;]*)/), v = m ? decodeURIComponent(m[1]) : '';
+var x = 'who_' + (v || 'none');
+history.replaceState(null, '', location.pathname + location.search + '#' + x);
+document.title = x;
+document.getElementById('o').textContent = x;
+</script></body></html>

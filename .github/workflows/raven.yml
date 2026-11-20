@@ -124,6 +124,7 @@ jobs:
           RAVEN_E2E_WIPE: '1'
           RAVEN_E2E_LINK_CHOOSER: '1'
           RAVEN_E2E_DISABLE_OTHER_BROWSERS: '1'
+          RAVEN_E2E_SETTLE: '20'
       - uses: actions/upload-artifact@v5
         if: always()
         with:
