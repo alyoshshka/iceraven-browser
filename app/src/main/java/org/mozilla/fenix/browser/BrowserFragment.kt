@@ -32,6 +32,9 @@ import mozilla.components.browser.state.state.selectedOrDefaultSearchEngine
 import mozilla.components.browser.thumbnails.BrowserThumbnails
 import mozilla.components.browser.thumbnails.facts.BrowserThumbnailsFacts
 import mozilla.components.concept.engine.HitResult
+import org.mozilla.fenix.profiles.OpenInProfileDialogFragment
+import org.mozilla.fenix.profiles.findFragmentActivity
+import org.mozilla.fenix.profiles.profileLinkUrl
 import mozilla.components.concept.engine.permission.SitePermissions
 import mozilla.components.concept.engine.prompt.ShareData
 import mozilla.components.feature.app.links.AppLinksUseCases
@@ -598,7 +601,8 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler, SystemIns
                 requireContext(),
                 contextMenuCandidateAppLinksUseCases,
             ) +
-            createOpenWithGoogleLensCandidate(context)
+            createOpenWithGoogleLensCandidate(context) +
+            createOpenLinkInProfileCandidate(context) // Profiles
     }
 
     private fun navigateToShareFragment(
@@ -649,6 +653,24 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler, SystemIns
             },
             action = { _, hitResult ->
                 context.components.appStore.dispatch(AppAction.LensAction.LensRequestedWithImageUrl(hitResult.src))
+            },
+        )
+
+    // Profiles: "Open link in profile…" for http(s) links in normal tabs.
+    private fun createOpenLinkInProfileCandidate(context: Context) =
+        ContextMenuCandidate(
+            id = "fenix.contextmenu.open_link_in_profile",
+            label = context.getString(R.string.profiles_open_link_in_profile_menu),
+            showFor = { tab, hitResult ->
+                !tab.content.private &&
+                    context.components.core.store.state.containers.isNotEmpty() &&
+                    hitResult.profileLinkUrl() != null
+            },
+            action = { _, hitResult ->
+                hitResult.profileLinkUrl()?.let { url ->
+                    context.findFragmentActivity()?.supportFragmentManager
+                        ?.let { OpenInProfileDialogFragment.showForUrl(it, url) }
+                }
             },
         )
 
