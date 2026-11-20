@@ -4,14 +4,17 @@
 
 package org.mozilla.fenix.profiles
 
+import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.tooling.preview.PreviewLightDark
 import androidx.compose.ui.unit.Dp
@@ -39,6 +42,65 @@ fun ProfileDot(
             .clearAndSetSemantics {},
     )
 }
+
+/** Profiles: draws the [icon] of a profile tinted with [color]. Decorative unless [contentDescription] is set. */
+@Composable
+fun ProfileIcon(
+    icon: ContainerState.Icon,
+    color: Color,
+    modifier: Modifier = Modifier,
+    size: Dp = ProfileIconSize,
+    contentDescription: String? = null,
+) {
+    Icon(
+        painter = painterResource(icon.drawableRes()),
+        contentDescription = contentDescription,
+        tint = color,
+        modifier = modifier.size(size),
+    )
+}
+
+/** Default size of [ProfileIcon]. */
+val ProfileIconSize: Dp = 24.dp
+
+/** Drawable of this container icon (the Firefox container icons). */
+@DrawableRes
+fun ContainerState.Icon.drawableRes(): Int = when (this) {
+    ContainerState.Icon.FINGERPRINT -> R.drawable.ic_profile_fingerprint
+    ContainerState.Icon.BRIEFCASE -> R.drawable.ic_profile_briefcase
+    ContainerState.Icon.DOLLAR -> R.drawable.ic_profile_dollar
+    ContainerState.Icon.CART -> R.drawable.ic_profile_cart
+    ContainerState.Icon.CIRCLE -> R.drawable.ic_profile_circle
+    ContainerState.Icon.GIFT -> R.drawable.ic_profile_gift
+    ContainerState.Icon.VACATION -> R.drawable.ic_profile_vacation
+    ContainerState.Icon.FOOD -> R.drawable.ic_profile_food
+    ContainerState.Icon.FRUIT -> R.drawable.ic_profile_fruit
+    ContainerState.Icon.PET -> R.drawable.ic_profile_pet
+    ContainerState.Icon.TREE -> R.drawable.ic_profile_tree
+    ContainerState.Icon.CHILL -> R.drawable.ic_profile_chill
+    ContainerState.Icon.FENCE -> R.drawable.ic_profile_fence
+}
+
+/** String resource with the (spoken) name of this icon. */
+@StringRes
+fun ContainerState.Icon.nameRes(): Int = when (this) {
+    ContainerState.Icon.FINGERPRINT -> R.string.profiles_icon_fingerprint
+    ContainerState.Icon.BRIEFCASE -> R.string.profiles_icon_briefcase
+    ContainerState.Icon.DOLLAR -> R.string.profiles_icon_dollar
+    ContainerState.Icon.CART -> R.string.profiles_icon_cart
+    ContainerState.Icon.CIRCLE -> R.string.profiles_icon_circle
+    ContainerState.Icon.GIFT -> R.string.profiles_icon_gift
+    ContainerState.Icon.VACATION -> R.string.profiles_icon_vacation
+    ContainerState.Icon.FOOD -> R.string.profiles_icon_food
+    ContainerState.Icon.FRUIT -> R.string.profiles_icon_fruit
+    ContainerState.Icon.PET -> R.string.profiles_icon_pet
+    ContainerState.Icon.TREE -> R.string.profiles_icon_tree
+    ContainerState.Icon.CHILL -> R.string.profiles_icon_chill
+    ContainerState.Icon.FENCE -> R.string.profiles_icon_fence
+}
+
+/** The icons a user can pick for a profile, in display order. */
+val ProfileIconPalette: List<ContainerState.Icon> = ContainerState.Icon.values().toList()
 
 // Profiles: ARGB values of the Firefox container colors (there is no Acorn equivalent).
 private const val BLUE = 0xFF37ADFF

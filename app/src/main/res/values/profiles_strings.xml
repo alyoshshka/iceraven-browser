@@ -16,6 +16,20 @@
     <string name="profiles_name_label" translatable="false">Profile name</string>
     <string name="profiles_name_error" translatable="false">Enter a name</string>
     <string name="profiles_color_label" translatable="false">Color</string>
+    <string name="profiles_icon_label" translatable="false">Icon</string>
+    <string name="profiles_icon_fingerprint" translatable="false">Fingerprint</string>
+    <string name="profiles_icon_briefcase" translatable="false">Briefcase</string>
+    <string name="profiles_icon_dollar" translatable="false">Dollar</string>
+    <string name="profiles_icon_cart" translatable="false">Cart</string>
+    <string name="profiles_icon_circle" translatable="false">Circle</string>
+    <string name="profiles_icon_gift" translatable="false">Gift</string>
+    <string name="profiles_icon_vacation" translatable="false">Vacation</string>
+    <string name="profiles_icon_food" translatable="false">Food</string>
+    <string name="profiles_icon_fruit" translatable="false">Fruit</string>
+    <string name="profiles_icon_pet" translatable="false">Pet</string>
+    <string name="profiles_icon_tree" translatable="false">Tree</string>
+    <string name="profiles_icon_chill" translatable="false">Chill</string>
+    <string name="profiles_icon_fence" translatable="false">Fence</string>
     <string name="profiles_color_blue" translatable="false">Blue</string>
     <string name="profiles_color_turquoise" translatable="false">Turquoise</string>
     <string name="profiles_color_green" translatable="false">Green</string>
@@ -37,8 +51,13 @@
     <string name="profiles_open_link_confirm" translatable="false">Open</string>
     <string name="profiles_always_open_in_profile" translatable="false">Always open %1$s in this profile</string>
     <string name="profiles_ask_for_links" translatable="false">Ask which profile for links from other apps</string>
-    <string name="profiles_site_rules_title" translatable="false">Site rules</string>
+    <string name="profiles_sites_title" translatable="false">Sites that always open here</string>
+    <string name="profiles_sites_empty" translatable="false">None yet. Use “Always open this site in this profile” on a page.</string>
+    <string name="profiles_limit_sites" translatable="false">Limit to designated sites</string>
+    <string name="profiles_limit_sites_description" translatable="false">Other sites open in the Default profile</string>
     <string name="profiles_site_rule_remove" translatable="false">Remove rule for %1$s</string>
+    <!-- Tab list filter -->
+    <string name="profiles_tabs_filter_all" translatable="false">All profiles</string>
     <!-- File picker -->
     <string name="profiles_upload_title" translatable="false">Upload from</string>
     <string name="profiles_upload_raven_files" translatable="false">Raven files</string>
