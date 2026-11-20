@@ -1,0 +1,205 @@
+name: Raven
+
+on:
+  push:
+    branches: [raven]
+  pull_request:
+    branches: [raven]
+  workflow_dispatch:
+  schedule:
+    - cron: '17 4 * * *'
+
+concurrency:
+  group: raven-${{ github.event_name == 'schedule' && 'sync' || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || github.ref != 'refs/heads/raven' }}
+
+permissions: {}
+
+jobs:
+  public-check:
+    name: Public-repo check
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Fetch upstream tags (read-only)
+        run: git fetch --tags --no-recurse-submodules https://github.com/fork-maintainers/iceraven-browser
+      - run: raven/check-public.sh
+
+  build:
+    name: Build
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    permissions:
+      contents: read
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: true
+          fetch-depth: 0
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL /usr/local/share/boost
+          sudo docker image prune --all --force || true
+          df -h /
+      - uses: actions/setup-java@v5
+        with:
+          java-version: 17
+          distribution: temurin
+      - uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-read-only: ${{ github.ref != 'refs/heads/raven' }}
+      - name: Inspect memory
+        run: free -h
+      - name: Prep (Iceraven's own prep, as in its release.yml)
+        run: |
+          git fetch --tags --no-recurse-submodules https://github.com/fork-maintainers/iceraven-browser
+          raven/prep.sh
+      - id: tag
+        run: echo "tag=$(cat .raven-tag)" >> "$GITHUB_OUTPUT"
+      - name: Build release APKs
+        env:
+          RAVEN_KEYSTORE_B64: ${{ secrets.RAVEN_KEYSTORE_B64 }}
+          RAVEN_STORE_PASS: ${{ secrets.RAVEN_STORE_PASS }}
+          RAVEN_KEY_ALIAS: ${{ secrets.RAVEN_KEY_ALIAS }}
+          RAVEN_KEY_PASS: ${{ secrets.RAVEN_KEY_PASS }}
+          RAVEN_XMX: 6g
+          RAVEN_WORKERS: '2'
+        run: raven/build.sh release
+      - uses: actions/upload-artifact@v5
+        with:
+          name: raven-apks
+          path: out/
+          if-no-files-found: error
+
+  e2e:
+    name: Emulator e2e
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v5
+        with:
+          name: raven-apks
+          path: apks
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Pick x86_64 APK
+        run: echo "APK=$(ls "$PWD"/apks/*-x86_64.apk | head -1)" >> "$GITHUB_ENV"
+      - name: Run e2e on emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          profile: pixel_6
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -memory 4096
+          script: raven/e2e.sh "${{ env.APK }}" emulator-5554
+        env:
+          RAVEN_E2E_OUT: ${{ github.workspace }}/e2e-out
+          RAVEN_E2E_WIPE: '1'
+      - uses: actions/upload-artifact@v5
+        if: always()
+        with:
+          name: e2e-out
+          path: e2e-out/
+          if-no-files-found: warn
+
+  release:
+    name: Release
+    needs: [build, e2e, public-check]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/raven'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/download-artifact@v5
+        with:
+          name: raven-apks
+          path: apks
+      - name: Create release
+        run: |
+          tag="raven-${{ needs.build.outputs.tag }}-r${{ github.run_number }}"
+          cd apks
+          gh release create "$tag" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "Raven ($tag)" \
+            --notes "Raven = ${{ needs.build.outputs.tag }} plus profiles. SHA-256 sums are in SHA256SUMS." \
+            ./*.apk ./*.sha256 SHA256SUMS
+
+  sync-upstream:
+    name: Sync upstream Iceraven
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write        # push sync/* branches to this repository only
+      pull-requests: write
+      issues: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      UPSTREAM_URL: https://github.com/fork-maintainers/iceraven-browser
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: feat/profiles
+          fetch-depth: 0
+      - name: Look for a newer upstream release
+        id: latest
+        run: |
+          git fetch --tags --no-recurse-submodules "$UPSTREAM_URL"
+          current=$(git describe --tags --abbrev=0 --match 'iceraven-*')
+          latest=$(git tag -l 'iceraven-*' | sort -V | tail -1)
+          echo "current=$current latest=$latest"
+          echo "latest=$latest" >> "$GITHUB_OUTPUT"
+          if [ "$latest" != "$current" ] && [ "$(printf '%s\n%s\n' "$current" "$latest" | sort -V | tail -1)" = "$latest" ]; then
+            echo "newer=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Merge the tag into sync/<tag> and open a PR into feat/profiles
+        if: steps.latest.outputs.newer == 'true'
+        run: |
+          latest=${{ steps.latest.outputs.latest }}
+          branch="sync/$latest"
+          if gh pr list --head "$branch" --state open --json number --jq '.[0].number' | grep -q .; then
+            echo "PR for $latest already open"; exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$branch"
+          if git merge --no-edit "$latest"; then
+            git push --force origin "$branch"
+            gh pr create --head "$branch" --base feat/profiles \
+              --title "Merge Iceraven $latest" \
+              --body "Merge of upstream tag \`$latest\` into feat/profiles. After merging, feat/profiles is merged into raven (a PR is opened by the next run)."
+          else
+            git merge --abort || true
+            title="Merging $latest into feat/profiles conflicts"
+            if gh issue list --state open --search "\"$title\" in:title" --json number --jq '.[0].number' | grep -q .; then
+              echo "issue already open"; exit 0
+            fi
+            gh issue create --title "$title" \
+              --body "Resolve locally: git checkout -b sync/$latest feat/profiles && git merge $latest. Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          fi
+      - name: Open a PR feat/profiles into raven when raven is behind
+        run: |
+          git fetch --quiet origin raven
+          if [ "$(git rev-list --count origin/raven..origin/feat/profiles)" -gt 0 ] \
+             && ! gh pr list --head feat/profiles --base raven --state open --json number --jq '.[0].number' | grep -q .; then
+            gh pr create --head feat/profiles --base raven \
+              --title "Merge feat/profiles into raven" \
+              --body "raven is behind feat/profiles."
+          fi

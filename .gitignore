@@ -105,3 +105,15 @@ test_artifacts/
 
 # Web extensions: manifest.json files are generated
 manifest.json
+
+# Raven local artifacts
+venv/
+.pyshim/
+.raven-tag
+.raven-prepped
+out/
+e2e-out/
+*.jks
+*.keystore
+signing.properties
+raven-signing.*
