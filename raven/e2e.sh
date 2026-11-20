@@ -64,13 +64,22 @@ fail() { echo "FAIL: $1${2:+ ($2)}"; FAILS=$((FAILS + 1)); shot "fail-$(echo "$1
 shot() { STEP=$((STEP + 1)); A exec-out screencap -p > "$OUT/$(printf '%02d' $STEP)-$1.png" 2>/dev/null || true; }
 
 # ---- UI helpers ----------------------------------------------------------------------------------
+# Android's "Set <app> as your default browser app?" role dialog (raised by the browser's onboarding) is often
+# invisible to `uiautomator dump`, so detect it by window focus and back out of it before every dump.
+dismiss_role_dialog() {
+  if sh_ dumpsys window 2>/dev/null | grep -m1 -E 'mCurrentFocus|mFocusedWindow' | grep -qE 'RequestRoleActivity|permissioncontroller'; then
+    log "default-browser role dialog in focus; pressing Back"; sh_ input keyevent 4; sleep 1
+  fi
+}
+
 dump() { # refresh $UI, retrying: uiautomator fails while animations/idle state are unsettled
   local i
+  dismiss_role_dialog
   for i in 1 2 3 4; do
     if sh_ uiautomator dump /sdcard/raven-ui.xml >/dev/null 2>&1 && A exec-out cat /sdcard/raven-ui.xml > "$UI" 2>/dev/null && [ -s "$UI" ]; then return 0; fi
     sleep 1
   done
-  : > "$UI"; return 1
+  log "uiautomator dump failed 4 times"; : > "$UI"; return 1
 }
 
 # ui_query <mode> <regex>: mode "center" prints "x y" of the first node whose text/content-desc matches,
