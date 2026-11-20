@@ -33,6 +33,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -50,6 +51,9 @@ import mozilla.components.compose.base.modifier.animateRotation
 import mozilla.components.compose.base.text.Text
 import mozilla.components.ui.icons.R as iconsR
 import org.mozilla.fenix.R
+import org.mozilla.fenix.ext.components
+import org.mozilla.fenix.profiles.OpenInProfileDialogFragment
+import org.mozilla.fenix.profiles.findFragmentActivity
 import org.mozilla.fenix.tabstray.TabsTrayTestTag
 import org.mozilla.fenix.tabstray.data.createTab
 import org.mozilla.fenix.tabstray.redux.action.TabGroupAction
@@ -165,6 +169,12 @@ private fun FloatingToolbarActions(
     var showBottomAppBarMenu by remember { mutableStateOf(false) }
     var showCloseAllTabsDialog by remember { mutableStateOf(false) }
 
+    // Profiles: "New tab in profile…" when profiles exist.
+    val context = LocalContext.current
+    val hasProfiles = remember(context) {
+        runCatching { context.components.core.store.state.containers.isNotEmpty() }.getOrDefault(false)
+    }
+
     val menuItems =
         generateMenuItems(
             selectedPage = state.selectedPage,
@@ -178,6 +188,14 @@ private fun FloatingToolbarActions(
             onEnterMultiselectModeClick = onEnterMultiselectModeClick,
             onSelectAllTabsClick = onSelectAllTabsClick,
             onDeleteAllTabsClick = { showCloseAllTabsDialog = true },
+            onNewTabInProfileClick = if (hasProfiles) {
+                {
+                    context.findFragmentActivity()?.supportFragmentManager
+                        ?.let { OpenInProfileDialogFragment.showForNewTab(it) }
+                }
+            } else {
+                null
+            },
         )
 
     Card(
@@ -372,6 +390,7 @@ private fun generateMenuItems(
     onSelectAllTabsClick: () -> Unit,
     onDeleteAllTabsClick: () -> Unit,
     onAccountSettingsClick: () -> Unit,
+    onNewTabInProfileClick: (() -> Unit)? = null, // Profiles
 ): List<MenuItem> {
     val enterSelectModeItem =
         MenuItem.IconItem(
@@ -423,9 +442,18 @@ private fun generateMenuItems(
             testTag = TabsTrayTestTag.ACCOUNT_SETTINGS,
             onClick = onAccountSettingsClick,
         )
+    val newTabInProfileItem =
+        onNewTabInProfileClick?.let {
+            MenuItem.IconItem(
+                text = Text.Resource(R.string.profiles_new_tab_in_profile_menu),
+                drawableRes = iconsR.drawable.mozac_ic_avatar_circle_24,
+                onClick = it,
+            )
+        }
     return when {
         selectedPage == Page.NormalTabs && normalTabCount == 0 ->
             listOfNotNull(
+                newTabInProfileItem,
                 recentlyClosedTabsItem,
                 newTabGroupItem.takeIf { homepageAsNewTabEnabled },
                 tabSettingsItem,
@@ -439,6 +467,7 @@ private fun generateMenuItems(
 
         selectedPage == Page.NormalTabs ->
             listOfNotNull(
+                newTabInProfileItem,
                 enterSelectModeItem,
                 selectAllTabsItem,
                 recentlyClosedTabsItem,

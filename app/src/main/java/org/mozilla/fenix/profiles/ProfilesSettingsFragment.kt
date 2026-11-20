@@ -76,6 +76,7 @@ class ProfilesSettingsFragment : Fragment(), SystemInsetsPaddedFragment {
 
         var askForLinks by remember { mutableStateOf(storage.askForExternalLinks) }
         var rules by remember(profiles) { mutableStateOf(storage.rules()) }
+        var limited by remember(profiles) { mutableStateOf(storage.limitedProfiles()) }
 
         FirefoxTheme {
             ProfilesSettingsScreen(
@@ -86,21 +87,24 @@ class ProfilesSettingsFragment : Fragment(), SystemInsetsPaddedFragment {
                     askForLinks = it
                 },
                 rules = rules,
-                onRemoveRule = {
-                    storage.removeRule(it)
-                    rules = storage.rules()
-                },
-                onSave = { existing, name, color ->
+                limited = limited,
+                onSave = { existing, name, color, icon, limitSites, removedSites ->
                     // Adding a container with an existing contextId replaces it (see ContainerReducer).
                     val contextId = existing?.contextId ?: UUID.randomUUID().toString()
                     storage.setName(contextId, name)
+                    if (existing != null) {
+                        removedSites.forEach { storage.removeRule(it) }
+                        storage.setLimited(contextId, limitSites)
+                        rules = storage.rules()
+                        limited = storage.limitedProfiles()
+                    }
                     store.dispatch(
                         ContainerAction.AddContainerAction(
                             ContainerState(
                                 contextId = contextId,
                                 name = name,
                                 color = color,
-                                icon = existing?.icon ?: ContainerState.Icon.CIRCLE,
+                                icon = icon,
                             ),
                         ),
                     )
@@ -139,6 +143,7 @@ private sealed interface ProfileDialog {
  * @param profiles The profiles to show, already sorted.
  * @param askForLinks Whether links from other apps ask which profile to open in.
  * @param rules Saved site rules, host to contextId (or [ProfileStorage.DEFAULT_ID]).
+ * @param limited The profiles limited to their designated sites.
  * @param onSave Invoked to add (existing null) or update a profile.
  * @param onDelete Invoked after the user confirmed deleting a profile.
  */
@@ -148,12 +153,18 @@ private fun ProfilesSettingsScreen(
     askForLinks: Boolean,
     onAskForLinksChange: (Boolean) -> Unit,
     rules: Map<String, String>,
-    onRemoveRule: (host: String) -> Unit,
-    onSave: (existing: ContainerState?, name: String, color: ContainerState.Color) -> Unit,
+    limited: Set<String>,
+    onSave: (
+        existing: ContainerState?,
+        name: String,
+        color: ContainerState.Color,
+        icon: ContainerState.Icon,
+        limited: Boolean,
+        removedSites: Set<String>,
+    ) -> Unit,
     onDelete: (ContainerState) -> Unit,
 ) {
     var dialog by remember { mutableStateOf<ProfileDialog?>(null) }
-    val defaultName = stringResource(R.string.profiles_default_name)
 
     Surface(modifier = Modifier.fillMaxSize()) {
         LazyColumn(modifier = Modifier.fillMaxSize()) {
@@ -185,37 +196,6 @@ private fun ProfilesSettingsScreen(
                     onDelete = { dialog = ProfileDialog.Delete(profile) },
                 )
             }
-
-            val ruleRows = rules.entries
-                .mapNotNull { (host, contextId) ->
-                    if (contextId == ProfileStorage.DEFAULT_ID) {
-                        Triple(host, defaultName, null)
-                    } else {
-                        profiles.firstOrNull { it.contextId == contextId }?.let { Triple(host, it.name, it.color) }
-                    }
-                }
-                .sortedBy { it.first }
-            if (ruleRows.isNotEmpty()) {
-                item {
-                    Text(
-                        text = stringResource(R.string.profiles_site_rules_title),
-                        color = MaterialTheme.colorScheme.onSurface,
-                        style = FirefoxTheme.typography.headline8,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                    )
-                }
-                items(ruleRows, key = { "rule:" + it.first }) { (host, name, color) ->
-                    IconListItem(
-                        label = host,
-                        description = name,
-                        beforeIconPainter = painterResource(iconsR.drawable.mozac_ic_notification_dot_fill_24),
-                        beforeIconTint = color?.toComposeColor() ?: MaterialTheme.colorScheme.onSurfaceVariant,
-                        afterIconPainter = painterResource(iconsR.drawable.mozac_ic_delete_24),
-                        afterIconDescription = stringResource(R.string.profiles_site_rule_remove, host),
-                        onAfterIconClick = { onRemoveRule(host) },
-                    )
-                }
-            }
         }
     }
 
@@ -223,9 +203,13 @@ private fun ProfilesSettingsScreen(
         is ProfileDialog.Edit -> ProfileEditDialog(
             existing = current.existing,
             defaultColor = firstUnusedColor(profiles),
+            sites = current.existing?.let { existing ->
+                rules.filterValues { it == existing.contextId }.keys.sorted()
+            }.orEmpty(),
+            limited = current.existing?.let { it.contextId in limited } ?: false,
             onDismiss = { dialog = null },
-            onSave = { name, color ->
-                onSave(current.existing, name, color)
+            onSave = { name, color, icon, limitSites, removedSites ->
+                onSave(current.existing, name, color, icon, limitSites, removedSites)
                 dialog = null
             },
         )
@@ -253,7 +237,7 @@ private fun ProfileRow(
 
     IconListItem(
         label = profile.name,
-        beforeIconPainter = painterResource(iconsR.drawable.mozac_ic_notification_dot_fill_24),
+        beforeIconPainter = painterResource(profile.icon.drawableRes()),
         beforeIconDescription = stringResource(profile.color.nameRes()),
         beforeIconTint = profile.color.toComposeColor(),
         onClick = onEdit,
@@ -323,12 +307,12 @@ private fun ProfilesSettingsScreenPreview() {
             askForLinks = true,
             onAskForLinksChange = {},
             rules = mapOf("example.com" to "2"),
-            onRemoveRule = {},
+            limited = emptySet(),
             profiles = listOf(
                 ContainerState("1", "Home", ContainerState.Color.GREEN, ContainerState.Icon.CIRCLE),
                 ContainerState("2", "Work", ContainerState.Color.BLUE, ContainerState.Icon.CIRCLE),
             ),
-            onSave = { _, _, _ -> },
+            onSave = { _, _, _, _, _, _ -> },
             onDelete = {},
         )
     }

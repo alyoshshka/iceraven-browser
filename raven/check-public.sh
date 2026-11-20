@@ -47,7 +47,8 @@ scan() { # <label> <ere> [filter-out ere] [strip ere: removed from every line be
 }
 
 scan "foreign e-mail" '[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}' '@users\.noreply\.github\.com|@example\.|noreply@|@(android|androidx|kotlin|SuppressLint)\b|[A-Za-z]+@[0-9]+\.[0-9]'
-scan "home paths" '/home/[A-Za-z0-9_.-]+|/Users/[A-Za-z0-9_.-]+'
+# Absolute home paths only: not preceded by a path/identifier character (so fenix/home/toolbar is not a hit).
+scan "home paths" '(^|[^A-Za-z0-9_./-])(/home/[A-Za-z0-9_.-]+|/Users/[A-Za-z0-9_.-]+)'
 # 10.0.2.2 is the Android emulator's fixed alias for the host loopback (used by raven/e2e.sh); it is not a real LAN address.
 scan "private IPs" '\b(192\.168\.[0-9]+\.[0-9]+|10\.[0-9]+\.[0-9]+\.[0-9]+|172\.(1[6-9]|2[0-9]|3[01])\.[0-9]+\.[0-9]+)\b' '' '(^|[^0-9.])10\.0\.2\.2($|[^0-9])'
 scan "private keys" '-----BEGIN [A-Z ]*PRIVATE KEY-----'

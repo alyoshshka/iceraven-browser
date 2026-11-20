@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- This Source Code Form is subject to the terms of the Mozilla Public
+   - License, v. 2.0. If a copy of the MPL was not distributed with this
+   - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
+<!-- Profiles: Firefox container icon "fruit" (browser/components/contextualidentity), converted to a vector drawable. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="16"
+    android:viewportHeight="16">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M8.25,4c-1.05-0.45-1.95-0.6-3.3-0.45C2.3,4,0.9,6.3,0.9,9c0,2.95,2.4,7,4.9,7c0.8,0,1.95-0.6,2.2-0.6 c0.25,0,1.4,0.6,2.2,0.6c2.5,0,4.9-4.2,4.9-7c0-2.95-1.6-5.4-4.9-5.4C9.5,3.55,8.9,3.75,8.25,4z M5.85,0c0.55,0.1,1.6,0.45,2.05,1.15 c0.45,0.7,0.25,1.8,0.1,2.3c-0.6-0.1-1.6-0.35-2.05-1.15C5.5,1.6,5.7,0.55,5.85,0L5.85,0z" />
+</vector>

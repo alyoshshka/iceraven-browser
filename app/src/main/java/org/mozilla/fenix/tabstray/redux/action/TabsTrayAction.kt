@@ -31,6 +31,14 @@ sealed interface TabsTrayAction : Action {
     /** Dispatched when a UI state update has been received from the UI state persistence layer. */
     data class PersistedUiStateUpdateReceived(val update: PersistedUIState) : TabsTrayAction
 
+    /**
+     * Profiles: filters the normal tabs page by profile.
+     *
+     * @property profileId The id of the profile to show ([org.mozilla.fenix.profiles.ProfileStorage.DEFAULT_ID] for
+     *   Default), or null for all profiles.
+     */
+    data class ProfileFilterSelected(val profileId: String?) : TabsTrayAction
+
     /** Entered multi-select mode. */
     object EnterSelectMode : TabsTrayAction
 

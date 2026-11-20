@@ -16,6 +16,7 @@ package org.mozilla.fenix.tabstray.data
  * @property privateTabs The list of private [TabsTrayItem]s to display in the Tabs Tray.
  * @property selectedPrivateItemIndex The index of the selected item in the list of private tab items.
  * @property tabGroups The list of [TabsTrayItem.TabGroup]s to display in the Tabs Tray.
+ * @property profileIds Profiles: ids of the profiles that own an open normal tab (Default as "default"), sorted.
  */
 data class TabStorageUpdate(
     val selectedTabId: String?,
@@ -26,4 +27,5 @@ data class TabStorageUpdate(
     val privateTabs: List<TabsTrayItem>,
     val selectedPrivateItemIndex: Int,
     val tabGroups: List<TabsTrayItem.TabGroup>,
+    val profileIds: List<String> = emptyList(),
 )

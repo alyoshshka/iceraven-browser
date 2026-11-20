@@ -4,6 +4,7 @@
 
 package org.mozilla.fenix.downloads.listscreen.middleware
 
+import mozilla.components.browser.state.state.ContainerState
 import androidx.annotation.FloatRange
 import java.time.Instant
 import kotlinx.coroutines.CoroutineScope
@@ -91,10 +92,10 @@ class DownloadUIMapperMiddleware(
         val profileName = profileId?.let {
             if (it == ProfileStorage.DEFAULT_ID) "Default" else container?.name ?: profileStorage.knownProfiles()[it] ?: it
         }
-        return toFileItem(profileId, profileName, container?.color?.toArgb())
+        return toFileItem(profileId, profileName, container?.color?.toArgb(), container?.icon)
     }
 
-    private suspend fun DownloadState.toFileItem(profileId: String?, profileName: String?, profileColor: Int?) =
+    private suspend fun DownloadState.toFileItem(profileId: String?, profileName: String?, profileColor: Int?, profileIcon: ContainerState.Icon?) =
         FileItem(
             id = id,
             url = url,
@@ -113,6 +114,7 @@ class DownloadUIMapperMiddleware(
             profileId = profileId,
             profileName = profileName,
             profileColor = profileColor,
+            profileIcon = profileIcon,
         )
 
     private fun DownloadState.Status.toFileItemStatus(
