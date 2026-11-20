@@ -218,6 +218,8 @@ read_size() {
 swipe_up() { sh_ input swipe $((SCREEN_W / 2)) $((SCREEN_H * 3 / 4)) $((SCREEN_W / 2)) $((SCREEN_H / 4)) 300; sleep 1; }
 
 swipe_down() { sh_ input swipe $((SCREEN_W / 2)) $((SCREEN_H / 4)) $((SCREEN_W / 2)) $((SCREEN_H * 3 / 4)) 300; sleep 1; }
+# Scroll a list back towards its top, starting below any banner that covers the upper part of the screen.
+swipe_list_down() { sh_ input swipe $((SCREEN_W / 2)) $((SCREEN_H * 2 / 5)) $((SCREEN_W / 2)) $((SCREEN_H * 9 / 10)) 250; sleep 1; }
 
 tap_text_scroll() { # <regex>: tap, scrolling down up to 6 times to find it
   local i
@@ -612,10 +614,12 @@ check_tabs_filter() {
   xy=$(ui_query center 'Tabs [Oo]pen|^Tab counter|tab counter') || { fail "$name" "no tab counter"; return 1; }
   tap_xy ${xy}
   # The filter chip is the first row of the list; the tray opens scrolled to the selected tab, so scroll back up to it.
-  local k found=0
-  for k in 1 2 3 4 5 6 7 8; do
+  local k found=0 dxy
+  # Tips such as "close tabs automatically" sit over the top of the list on phones; dismiss them first.
+  dump && dxy=$(ui_query center '^Dismiss$') && { tap_xy ${dxy}; sleep 1; }
+  for k in 1 2 3 4 5 6 7 8 9 10 11 12; do
     if wait_for_text '^All profiles$' 3; then found=1; break; fi
-    swipe_down
+    swipe_list_down
   done
   [ "$found" = 1 ] || { fail "$name" "tab tray shows no profile filter chip"; back; return 1; }
   ui_query has 'who_default' || log "unfiltered tray: Default marker tab not on screen (list is long); continuing"
