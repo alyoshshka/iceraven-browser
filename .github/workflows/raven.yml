@@ -114,11 +114,13 @@ jobs:
         with:
           api-level: 34
           arch: x86_64
-          target: google_apis
+          # Plain AOSP image: no Google Play services (crashed and raised system dialogs at boot) and no Chrome.
+          target: default
           profile: pixel_6
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -memory 4096
-          script: raven/e2e.sh "${{ env.APK }}" emulator-5554
+          # One retry from a fresh install: emulator UI runs are occasionally disturbed at boot.
+          script: raven/e2e.sh "${{ env.APK }}" emulator-5554 || { echo "e2e attempt 1 failed; retrying once"; RAVEN_E2E_OUT="$RAVEN_E2E_OUT/retry" raven/e2e.sh "${{ env.APK }}" emulator-5554; }
         env:
           RAVEN_E2E_OUT: ${{ github.workspace }}/e2e-out
           RAVEN_E2E_WIPE: '1'
