@@ -25,6 +25,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
+import mozilla.components.ui.icons.R as iconsR
+import androidx.compose.ui.res.painterResource
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -159,7 +162,12 @@ private fun ProfileRadioRow(
         if (icon != null) {
             ProfileIcon(icon = icon.icon, color = icon.color.toComposeColor(), size = 20.dp)
         } else {
-            Spacer(modifier = Modifier.size(20.dp))
+            Icon(
+                painter = painterResource(iconsR.drawable.mozac_ic_globe_24),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp),
+            )
         }
         Text(
             text = label,

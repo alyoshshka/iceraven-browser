@@ -580,6 +580,7 @@ class TabStorageMiddleware(
                     tab = tab,
                     isFocused = tab.id == selectedTabId,
                     profileColor = tab.contextId?.let { containers[it]?.color?.toArgb() },
+                    profileIcon = tab.contextId?.let { containers[it]?.icon },
                 )
             val assignedGroupId = tabGroupAssignments[displayTab.id]
             val assignedGroup = transformedTabGroups[assignedGroupId]

@@ -446,7 +446,7 @@ private fun generateMenuItems(
         onNewTabInProfileClick?.let {
             MenuItem.IconItem(
                 text = Text.Resource(R.string.profiles_new_tab_in_profile_menu),
-                drawableRes = iconsR.drawable.mozac_ic_tab_24,
+                drawableRes = iconsR.drawable.mozac_ic_avatar_circle_24,
                 onClick = it,
             )
         }

@@ -91,6 +91,13 @@ import org.mozilla.fenix.home.toolbar.NavigationInteractions.NavigateForwardLong
 import org.mozilla.fenix.home.toolbar.PageOriginInteractions.OriginClicked
 import org.mozilla.fenix.home.toolbar.TabCounterInteractions.AddNewPrivateTab
 import org.mozilla.fenix.home.toolbar.TabCounterInteractions.AddNewTab
+import org.mozilla.fenix.home.toolbar.TabCounterInteractions.AddNewTabInProfile
+import org.mozilla.fenix.components.toolbar.StartPageActions
+import org.mozilla.fenix.profiles.OpenInProfileDialogFragment
+import org.mozilla.fenix.profiles.ProfileActionsDialogFragment
+import org.mozilla.fenix.profiles.findFragmentActivity
+import org.mozilla.fenix.profiles.profileToolbarAction
+import org.mozilla.fenix.profiles.toolbarProfileOf
 import org.mozilla.fenix.home.toolbar.TabCounterInteractions.TabCounterClicked
 import org.mozilla.fenix.home.toolbar.TabCounterInteractions.TabCounterLongClicked
 import org.mozilla.fenix.nimbus.FxNimbus
@@ -121,6 +128,9 @@ internal sealed class TabCounterInteractions : BrowserToolbarEvent {
     data class AddNewTab(override val source: Source) : TabCounterInteractions()
 
     data class AddNewPrivateTab(override val source: Source) : TabCounterInteractions()
+
+    // Profiles: "New tab in profile…" from the tab counter menu or the long-press on "+".
+    data class AddNewTabInProfile(override val source: Source) : TabCounterInteractions()
 }
 
 internal sealed class PageOriginInteractions : BrowserToolbarEvent {
@@ -248,6 +258,20 @@ class BrowserToolbarMiddleware(
                 addNewTab(store, Private)
                 next(action)
             }
+            // Profiles
+            is AddNewTabInProfile -> {
+                uiContext.findFragmentActivity()?.supportFragmentManager
+                    ?.let { OpenInProfileDialogFragment.showForNewTab(it) }
+                next(action)
+            }
+            is StartPageActions.ProfileClicked -> {
+                val tabId = browserStore.state.selectedTab?.id
+                val fragmentManager = uiContext.findFragmentActivity()?.supportFragmentManager
+                if (tabId != null && fragmentManager != null) {
+                    ProfileActionsDialogFragment.show(fragmentManager, tabId)
+                }
+                next(action)
+            }
 
             is OriginClicked -> {
                 Events.searchBarTapped.record(Events.SearchBarTappedExtra("HOME"))
@@ -346,7 +370,13 @@ class BrowserToolbarMiddleware(
 
         observeBrowserSearchStateJob?.cancel()
         observeBrowserSearchStateJob = browserStore.observeWhileActive {
-            distinctUntilChangedBy { it.search.searchEngineShortcuts }
+            distinctUntilChangedBy { state ->
+                // Profiles: the chip follows the selected tab's profile.
+                Pair(
+                    state.search.searchEngineShortcuts,
+                    state.selectedTab?.let { Triple(it.contextId, it.content.private, state.containers[it.contextId]) },
+                )
+            }
                 .collect {
                     updateStartPageActions(
                         store = store,
@@ -415,6 +445,10 @@ class BrowserToolbarMiddleware(
 
     private fun buildStartPageActions(selectedSearchEngine: SearchEngine?): List<Action> {
         return listOfNotNull(
+            // Profiles: chip for a profile's tab on its homepage; never for Default or private tabs.
+            browserStore.state.toolbarProfileOf(browserStore.state.selectedTab)?.let { profile ->
+                profileToolbarAction(uiContext, profile, StartPageActions.ProfileClicked)
+            },
             BrowserToolbarSearchMiddleware.buildSearchSelector(
                 selectedSearchEngine = selectedSearchEngine,
                 searchEngineShortcuts = browserStore.state.search.searchEngineShortcuts,
@@ -529,7 +563,14 @@ class BrowserToolbarMiddleware(
                             contentDescription =
                                 StringResContentDescription(tabcounterR.string.mozac_browser_menu_new_private_tab),
                             onClick = AddNewPrivateTab(source),
-                        )
+                        ),
+                        // Profiles
+                        BrowserToolbarMenuButton(
+                            icon = DrawableResIcon(iconsR.drawable.mozac_ic_avatar_circle_24),
+                            text = StringResText(R.string.profiles_new_tab_in_profile_menu),
+                            contentDescription = StringResContentDescription(R.string.profiles_new_tab_in_profile_menu),
+                            onClick = AddNewTabInProfile(source),
+                        ),
                     )
             }
         }
@@ -731,6 +772,8 @@ class BrowserToolbarMiddleware(
                         } else {
                             AddNewTab(source)
                         },
+                    // Profiles: long-press picks the profile of the new tab.
+                    onLongClick = if (browsingModeManager.mode == Private) null else AddNewTabInProfile(source),
                 )
 
             HomeToolbarAction.FakeTranslate ->

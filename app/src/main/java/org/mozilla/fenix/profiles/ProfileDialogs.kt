@@ -276,6 +276,7 @@ private fun ProfileSitesSection(
 
     SwitchListItem(
         label = stringResource(R.string.profiles_limit_sites),
+        maxLabelLines = 3,
         description = stringResource(R.string.profiles_limit_sites_description),
         maxDescriptionLines = 2,
         checked = limited,

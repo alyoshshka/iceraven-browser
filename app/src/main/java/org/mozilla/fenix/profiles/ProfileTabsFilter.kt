@@ -21,6 +21,7 @@ import mozilla.components.compose.base.SelectableChip
 import mozilla.components.compose.base.menu.DropdownMenu
 import mozilla.components.compose.base.menu.MenuItem
 import mozilla.components.compose.base.text.Text as MenuText
+import mozilla.components.ui.icons.R as iconsR
 import org.mozilla.fenix.R
 import org.mozilla.fenix.ext.components
 import org.mozilla.fenix.theme.FirefoxTheme
@@ -52,6 +53,9 @@ fun ProfileTabsFilterChip(
         }.sortedBy { it.second.lowercase() }.forEach { add(it) }
     }
     val label = options.firstOrNull { it.first == selected }?.second ?: allLabel
+    val iconOf: (String?) -> Int = { id ->
+        containers[id]?.icon?.drawableRes() ?: if (id == null) iconsR.drawable.mozac_ic_tab_24 else iconsR.drawable.mozac_ic_globe_24
+    }
 
     // Chip and DropdownMenu in a common parent so the menu position is calculated correctly.
     Box(
@@ -69,8 +73,9 @@ fun ProfileTabsFilterChip(
         DropdownMenu(
             expanded = expanded,
             menuItems = options.map { (id, text) ->
-                MenuItem.TextItem(
+                MenuItem.IconItem(
                     text = MenuText.String(text),
+                    drawableRes = iconOf(id),
                     level = MenuItem.FixedItem.Level.Default,
                     onClick = { onSelected(id) },
                 )

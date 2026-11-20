@@ -978,7 +978,7 @@ class BrowserToolbarMiddleware(
                     ),
                     // Profiles
                     BrowserToolbarMenuButton(
-                        icon = DrawableResIcon(iconsR.drawable.mozac_ic_tab_24),
+                        icon = DrawableResIcon(iconsR.drawable.mozac_ic_avatar_circle_24),
                         text = StringResText(R.string.profiles_new_tab_in_profile_menu),
                         contentDescription = StringResContentDescription(R.string.profiles_new_tab_in_profile_menu),
                         onClick = AddNewTabInProfile(source),
@@ -1562,7 +1562,8 @@ class BrowserToolbarMiddleware(
                 )
         }.run {
             when {
-                isShortcut && this is ActionButtonRes -> copy(onLongClick = buildShortcutLongPressMenu(source))
+                isShortcut && this is ActionButtonRes ->
+                    copy(onLongClick = buildShortcutLongPressMenu(source, toolbarAction == ToolbarAction.NewTab))
                 isShortcut && this is ActionButton -> copy(onLongClick = buildShortcutLongPressMenu(source))
                 else -> this
             }
@@ -1614,9 +1615,16 @@ class BrowserToolbarMiddleware(
         }
     }
 
-    private fun buildShortcutLongPressMenu(source: Source) =
+    private fun buildShortcutLongPressMenu(source: Source, isNewTab: Boolean = false) =
         CombinedEventAndMenu(ShortcutLongClicked(source)) {
-            listOf(
+            listOfNotNull(
+                // Profiles: the "+" shortcut keeps its profile picker next to the edit option.
+                BrowserToolbarMenuButton(
+                    icon = DrawableResIcon(iconsR.drawable.mozac_ic_avatar_circle_24),
+                    text = StringResText(R.string.profiles_new_tab_in_profile_menu),
+                    contentDescription = StringResContentDescription(R.string.profiles_new_tab_in_profile_menu),
+                    onClick = AddNewTabInProfile(source),
+                ).takeIf { isNewTab && browsingModeManager.mode == Normal },
                 BrowserToolbarMenuButton(
                     icon = null,
                     text = StringResText(R.string.toolbar_shortcut_menu_edit_option),

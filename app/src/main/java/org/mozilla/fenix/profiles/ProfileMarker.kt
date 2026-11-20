@@ -60,6 +60,23 @@ fun ProfileIcon(
     )
 }
 
+/** Profiles: the small profile icon shown on tab cards, the tab strip and download rows (a dot if the icon is unknown). */
+@Composable
+fun ProfileTabIcon(
+    icon: ContainerState.Icon?,
+    color: Color,
+    modifier: Modifier = Modifier,
+) {
+    if (icon == null) {
+        ProfileDot(color = color, modifier = modifier)
+    } else {
+        ProfileIcon(icon = icon, color = color, modifier = modifier, size = ProfileTabIconSize)
+    }
+}
+
+/** Size of [ProfileTabIcon]. */
+val ProfileTabIconSize: Dp = 14.dp
+
 /** Default size of [ProfileIcon]. */
 val ProfileIconSize: Dp = 24.dp
 

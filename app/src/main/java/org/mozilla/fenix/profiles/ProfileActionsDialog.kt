@@ -90,7 +90,7 @@ fun ProfileActionsDialog(
                     SwitchListItem(
                         label = stringResource(R.string.profiles_always_open_in_profile, host),
                         checked = alwaysOpen,
-                        maxLabelLines = 2,
+                        maxLabelLines = 3,
                         showSwitchAfter = true,
                         onClick = onAlwaysOpenChanged,
                     )

@@ -33,6 +33,8 @@ import org.mozilla.fenix.downloads.listscreen.store.ProfileFilter
 import org.mozilla.fenix.ext.components
 import org.mozilla.fenix.profiles.ProfileFileResult
 import org.mozilla.fenix.profiles.ProfileStorage
+import org.mozilla.fenix.profiles.drawableRes
+import mozilla.components.ui.icons.R as iconsR
 import org.mozilla.fenix.theme.FirefoxTheme
 
 /**
@@ -66,6 +68,14 @@ internal fun ProfileFilterChip(
         if (showDevice) add(ProfileFilter.Device to deviceLabel)
     }
     val label = options.firstOrNull { it.first == selected }?.second ?: allLabel
+    val containers = LocalContext.current.applicationContext.components.core.store.state.containers
+    val iconOf: (ProfileFilter) -> Int = { filter ->
+        when (filter) {
+            ProfileFilter.All -> iconsR.drawable.mozac_ic_tab_24
+            ProfileFilter.Device -> iconsR.drawable.mozac_ic_download_24
+            is ProfileFilter.Profile -> containers[filter.id]?.icon?.drawableRes() ?: iconsR.drawable.mozac_ic_globe_24
+        }
+    }
 
     // Chip and DropdownMenu in a common parent so the menu position is calculated correctly.
     Box {
@@ -79,8 +89,9 @@ internal fun ProfileFilterChip(
         DropdownMenu(
             expanded = expanded,
             menuItems = options.map { (filter, text) ->
-                MenuItem.TextItem(
+                MenuItem.IconItem(
                     text = MenuText.String(text),
+                    drawableRes = iconOf(filter),
                     level = MenuItem.FixedItem.Level.Default,
                     onClick = { onSelected(filter) },
                 )
