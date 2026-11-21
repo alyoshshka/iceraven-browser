@@ -1,0 +1,65 @@
+diff --git a/components/browser/engine-gecko/src/main/java/mozilla/components/browser/engine/gecko/GeckoEngineSession.kt b/components/browser/engine-gecko/src/main/java/mozilla/components/browser/engine/gecko/GeckoEngineSession.kt
+index 7f20389e..d7fcde27 100644
+--- a/components/browser/engine-gecko/src/main/java/mozilla/components/browser/engine/gecko/GeckoEngineSession.kt
++++ b/components/browser/engine-gecko/src/main/java/mozilla/components/browser/engine/gecko/GeckoEngineSession.kt
+@@ -101,7 +101,7 @@ class GeckoEngineSession(
+     private val contextId: String? = null,
+     private val geckoSessionProvider: () -> GeckoSession = {
+         val settings = GeckoSessionSettings.Builder().usePrivateMode(privateMode).contextId(contextId).build()
+-        GeckoSession(settings)
++        KeepActiveGeckoSession(settings)
+     },
+     context: CoroutineContext = Dispatchers.IO,
+     openGeckoSession: Boolean = true,
+@@ -589,6 +589,14 @@ class GeckoEngineSession(
+         runtime.webExtensionController.setTabActive(geckoSession, active)
+     }
+ 
++    /** See [EngineSession.setKeepActive]. */
++    override fun setKeepActive(keepActive: Boolean) {
++        val session = geckoSession as? KeepActiveGeckoSession ?: return
++        if (session.keepActive == keepActive) return
++        session.keepActive = keepActive
++        if (keepActive) session.setActive(true)
++    }
++
+     /** See [EngineSession.updateSessionPriority]. */
+     override fun updateSessionPriority(priority: SessionPriority) {
+         geckoSession.setPriorityHint(priority.id)
+@@ -1927,3 +1935,16 @@ internal fun EngineSession.LoadUrlFlags.getGeckoFlags(): Int {
+ 
+     return newValue
+ }
++
++/**
++ * A [GeckoSession] that ignores requests to become inactive (e.g. when its view is detached or the app goes to the
++ * background) while [keepActive] is set. See [EngineSession.setKeepActive].
++ */
++internal class KeepActiveGeckoSession(settings: GeckoSessionSettings) : GeckoSession(settings) {
++    @Volatile
++    var keepActive: Boolean = false
++
++    override fun setActive(active: Boolean) {
++        super.setActive(active || keepActive)
++    }
++}
+diff --git a/components/concept/engine/src/main/java/mozilla/components/concept/engine/EngineSession.kt b/components/concept/engine/src/main/java/mozilla/components/concept/engine/EngineSession.kt
+index 6b5c3bd2..b4359fee 100644
+--- a/components/concept/engine/src/main/java/mozilla/components/concept/engine/EngineSession.kt
++++ b/components/concept/engine/src/main/java/mozilla/components/concept/engine/EngineSession.kt
+@@ -1058,6 +1058,15 @@ abstract class EngineSession(private val delegate: Observable<Observer> = Observ
+      */
+     open fun markActiveForWebExtensions(active: Boolean) = Unit
+ 
++    /**
++     * Keeps this session active (running timers, network callbacks and scripts) even while it is not visible, e.g.
++     * for a web app that should keep delivering notifications in the background. By default engines may suspend
++     * sessions that are not shown.
++     *
++     * @param keepActive whether to keep the session active while it is not visible.
++     */
++    open fun setKeepActive(keepActive: Boolean) = Unit
++
+     /**
+      * Updates the priority for this session.
+      *
