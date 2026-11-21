@@ -47,7 +47,9 @@ mkdir -p "$OUT"; OUT=$(cd "$OUT" && pwd)
 UI="$OUT/ui.xml"
 FAILS=0; STEP=0
 
-A() { adb -s "$SERIAL" "$@"; }
+# Every adb call is time-boxed: adb waits forever for a device that went away (e.g. a crashed CI emulator), which
+# would hang the run instead of failing it and letting the workflow retry.
+A() { timeout -k 5 "${RAVEN_E2E_ADB_TIMEOUT:-300}" adb -s "$SERIAL" "$@"; }
 sh_() { A shell "$@"; }
 log() { echo "[e2e] $*"; }
 
