@@ -160,7 +160,7 @@ private fun ProfileRadioRow(
                 .clearAndSetSemantics {},
         )
         if (icon != null) {
-            ProfileIcon(icon = icon.icon, color = icon.color.toComposeColor(), size = 20.dp)
+            ProfileBadge(container = icon, size = 20.dp)
         } else {
             Icon(
                 painter = painterResource(iconsR.drawable.mozac_ic_globe_24),

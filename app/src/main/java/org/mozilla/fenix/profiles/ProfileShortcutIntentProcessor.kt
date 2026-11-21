@@ -37,10 +37,15 @@ const val EXTRA_PROFILE_NEW_TAB = "app.ravenprofiles.extra.NEW_TAB"
 /** Profiles: intent extra (boolean): the profile for this link is already decided, don't ask again. */
 const val EXTRA_PROFILE_SKIP_ASK = "app.ravenprofiles.extra.SKIP_ASK"
 
-/** Builds the extras stored on a home screen shortcut created from [tab]. */
-fun profileShortcutExtras(tab: SessionState): Bundle = Bundle().apply {
+/**
+ * Builds the extras stored on a home screen shortcut created from [tab]: its profile, desktop mode, whether it opens
+ * as an app ([appMode], see [ProfileAppIntentProcessor]) and its [label].
+ */
+fun profileShortcutExtras(tab: SessionState, appMode: Boolean = true, label: String? = null): Bundle = Bundle().apply {
     tab.contextId?.let { putString(EXTRA_PROFILE_CONTEXT_ID, it) }
     putBoolean(EXTRA_PROFILE_DESKTOP, tab.content.desktopMode)
+    putBoolean(EXTRA_PROFILE_APP_MODE, appMode)
+    label?.let { putString(EXTRA_PROFILE_APP_LABEL, it) }
 }
 
 /**
@@ -63,7 +68,7 @@ class ProfileShortcutIntentProcessor(
         val host = uri.host
         if ((uri.scheme != "http" && uri.scheme != "https") || host.isNullOrEmpty()) return false
 
-        val contextId = intent.getStringExtra(EXTRA_PROFILE_CONTEXT_ID)
+        val contextId = intent.getStringExtra(EXTRA_PROFILE_CONTEXT_ID) ?: debugContextId(intent, store)
         // A shortcut of a deleted profile must not silently create a new cookie jar; let others handle it.
         // Containers load asynchronously, so on a cold start the map is still empty: trust the shortcut then.
         val containers = store.state.containers

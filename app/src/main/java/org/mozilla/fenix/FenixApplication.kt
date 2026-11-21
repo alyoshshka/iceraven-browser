@@ -480,6 +480,9 @@ open class FenixApplication : Application(), Provider, ThemeProvider {
 
         components.tabDataCoordinator.initialize()
 
+        // Profiles: custom colors and emoji of profiles (read off the main thread)
+        org.mozilla.fenix.profiles.ProfileAppearance.start(this, applicationScope)
+
         // Profiles: keep chosen tabs running in the background
         org.mozilla.fenix.profiles.ProfileKeepAlive.start(this, components.core.store, applicationScope)
 

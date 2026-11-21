@@ -247,7 +247,7 @@ private fun Header(
 
         // Profiles: dot between the favicon and the title.
         tab.profileColor?.let {
-            ProfileTabIcon(icon = tab.profileIcon, color = Color(it))
+            ProfileTabIcon(icon = tab.profileIcon, color = Color(it), profileId = tab.profileId)
             Spacer(modifier = Modifier.width(FirefoxTheme.layout.space.static50))
         }
 

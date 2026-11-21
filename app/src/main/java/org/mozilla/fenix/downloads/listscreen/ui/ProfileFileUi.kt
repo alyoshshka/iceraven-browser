@@ -13,6 +13,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -31,9 +32,11 @@ import org.mozilla.fenix.compose.list.RadioButtonListItem
 import org.mozilla.fenix.downloads.listscreen.store.FileItem
 import org.mozilla.fenix.downloads.listscreen.store.ProfileFilter
 import org.mozilla.fenix.ext.components
+import org.mozilla.fenix.profiles.ProfileAppearance
 import org.mozilla.fenix.profiles.ProfileFileResult
 import org.mozilla.fenix.profiles.ProfileStorage
 import org.mozilla.fenix.profiles.drawableRes
+import org.mozilla.fenix.profiles.withEmoji
 import mozilla.components.ui.icons.R as iconsR
 import org.mozilla.fenix.theme.FirefoxTheme
 
@@ -58,12 +61,13 @@ internal fun ProfileFilterChip(
     val defaultLabel = stringResource(R.string.profiles_files_default)
     val deviceLabel = stringResource(R.string.profiles_files_device_downloads)
 
+    val looks by ProfileAppearance.looks.collectAsState() // emoji of profiles
     val options = buildList {
         add(ProfileFilter.All to allLabel)
         add(ProfileFilter.Profile(ProfileStorage.DEFAULT_ID) to defaultLabel)
         profiles.forEach { item ->
             val id = item.profileId ?: return@forEach
-            add(ProfileFilter.Profile(id) to (item.profileName ?: id))
+            add(ProfileFilter.Profile(id) to withEmoji(looks[id]?.emoji, item.profileName ?: id))
         }
         if (showDevice) add(ProfileFilter.Device to deviceLabel)
     }
@@ -73,7 +77,7 @@ internal fun ProfileFilterChip(
         when (filter) {
             ProfileFilter.All -> iconsR.drawable.mozac_ic_tab_24
             ProfileFilter.Device -> iconsR.drawable.mozac_ic_download_24
-            is ProfileFilter.Profile -> containers[filter.id]?.icon?.drawableRes() ?: iconsR.drawable.mozac_ic_globe_24
+            is ProfileFilter.Profile -> containers[filter.id]?.takeIf { looks[filter.id]?.emoji == null }?.icon?.drawableRes() ?: iconsR.drawable.mozac_ic_globe_24
         }
     }
 

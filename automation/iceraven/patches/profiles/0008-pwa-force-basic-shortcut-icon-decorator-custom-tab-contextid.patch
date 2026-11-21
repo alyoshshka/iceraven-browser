@@ -1,0 +1,149 @@
+diff --git a/components/feature/pwa/src/main/java/mozilla/components/feature/pwa/WebAppShortcutManager.kt b/components/feature/pwa/src/main/java/mozilla/components/feature/pwa/WebAppShortcutManager.kt
+index 33c6b8e4..8e30bcf3 100644
+--- a/components/feature/pwa/src/main/java/mozilla/components/feature/pwa/WebAppShortcutManager.kt
++++ b/components/feature/pwa/src/main/java/mozilla/components/feature/pwa/WebAppShortcutManager.kt
+@@ -13,6 +13,7 @@ import android.content.Intent.CATEGORY_HOME
+ import android.content.Intent.FLAG_ACTIVITY_NEW_DOCUMENT
+ import android.content.Intent.FLAG_ACTIVITY_NEW_TASK
+ import android.content.pm.ShortcutManager
++import android.graphics.Bitmap
+ import android.os.Bundle
+ import androidx.annotation.VisibleForTesting
+ import androidx.core.content.getSystemService
+@@ -75,21 +76,32 @@ class WebAppShortcutManager(
+      * @param session The session to create the shortcut for.
+      * @param overrideShortcutName (optional) The name of the shortcut. Ignored for PWAs.
+      * @param basicShortcutExtras (optional) Extras added to the intent of a basic (non-PWA) shortcut.
++     * @param forceBasicShortcut (optional) Build a basic shortcut even if the session is an installable PWA.
++     * @param basicShortcutIconDecorator (optional) Draws on the icon of a basic shortcut (e.g. a badge).
+      */
++    @Suppress("LongParameterList")
+     suspend fun requestPinShortcut(
+         context: Context,
+         session: SessionState,
+         overrideShortcutName: String? = null,
+         basicShortcutExtras: Bundle? = null,
++        forceBasicShortcut: Boolean = false,
++        basicShortcutIconDecorator: ((Bitmap) -> Bitmap)? = null,
+     ) {
+         if (ShortcutManagerCompat.isRequestPinShortcutSupported(context)) {
+             val manifest = session.installableManifest()
+             val shortcut =
+-                if (supportWebApps && manifest != null) {
++                if (supportWebApps && manifest != null && !forceBasicShortcut) {
+                     emitPwaInstallFact()
+                     buildWebAppShortcut(context, manifest)
+                 } else {
+-                    buildBasicShortcut(context, session, overrideShortcutName, basicShortcutExtras)
++                    buildBasicShortcut(
++                        context,
++                        session,
++                        overrideShortcutName,
++                        basicShortcutExtras,
++                        basicShortcutIconDecorator,
++                    )
+                 }
+ 
+             if (shortcut != null) {
+@@ -129,6 +141,7 @@ class WebAppShortcutManager(
+         session: SessionState,
+         overrideShortcutName: String? = null,
+         extras: Bundle? = null,
++        iconDecorator: ((Bitmap) -> Bitmap)? = null,
+     ): ShortcutInfoCompat {
+         val shortcutIntent =
+             Intent(Intent.ACTION_VIEW, session.content.url.toUri()).apply {
+@@ -151,13 +164,13 @@ class WebAppShortcutManager(
+ 
+         val icon =
+             if (manifest != null && manifest.hasLargeIcons()) {
+-                buildIconFromManifest(manifest)
++                buildIconFromManifest(manifest, iconDecorator)
+             } else {
+                 session.content.icon
+                     ?.takeUnless { it.isRecycled }
+                     ?.let {
+                         val bitmapCopy = it.copy(it.config ?: android.graphics.Bitmap.Config.ARGB_8888, false)
+-                        IconCompat.createWithBitmap(bitmapCopy)
++                        IconCompat.createWithBitmap(iconDecorator?.invoke(bitmapCopy) ?: bitmapCopy)
+                     }
+             }
+ 
+@@ -198,7 +211,10 @@ class WebAppShortcutManager(
+     }
+ 
+     @VisibleForTesting
+-    internal suspend fun buildIconFromManifest(manifest: WebAppManifest): IconCompat? {
++    internal suspend fun buildIconFromManifest(
++        manifest: WebAppManifest,
++        decorator: ((Bitmap) -> Bitmap)? = null,
++    ): IconCompat? {
+         val request = manifest.toIconRequest()
+         val icon = icons.loadIcon(request).await()
+ 
+@@ -209,7 +225,10 @@ class WebAppShortcutManager(
+         // Create a copy to prevent the icon from being recycled by the cache after we use it.
+         val bitmapCopy = icon.bitmap.copy(icon.bitmap.config ?: android.graphics.Bitmap.Config.ARGB_8888, false)
+ 
+-        return if (icon.maskable) {
++        return if (decorator != null) {
++            // A decorated icon is drawn as is: an adaptive mask would crop the badge.
++            IconCompat.createWithBitmap(decorator(bitmapCopy))
++        } else if (icon.maskable) {
+             IconCompat.createWithAdaptiveBitmap(bitmapCopy)
+         } else {
+             IconCompat.createWithBitmap(bitmapCopy)
+diff --git a/components/feature/pwa/src/main/java/mozilla/components/feature/pwa/WebAppUseCases.kt b/components/feature/pwa/src/main/java/mozilla/components/feature/pwa/WebAppUseCases.kt
+index 1a12cc23..8feee0c4 100644
+--- a/components/feature/pwa/src/main/java/mozilla/components/feature/pwa/WebAppUseCases.kt
++++ b/components/feature/pwa/src/main/java/mozilla/components/feature/pwa/WebAppUseCases.kt
+@@ -5,6 +5,7 @@
+ package mozilla.components.feature.pwa
+ 
+ import android.content.Context
++import android.graphics.Bitmap
+ import android.os.Bundle
+ import androidx.core.content.pm.ShortcutManagerCompat
+ import mozilla.components.browser.state.selector.selectedTab
+@@ -42,10 +43,14 @@ class WebAppUseCases(
+          * @param overrideBasicShortcutName (optional) Custom label used if the current session is NOT a Progressive Web
+          *   App
+          * @param basicShortcutExtras (optional) Extras added to the intent of a basic (non-PWA) shortcut.
++         * @param forceBasicShortcut (optional) Build a basic shortcut even if the session is an installable PWA.
++         * @param basicShortcutIconDecorator (optional) Draws on the icon of a basic shortcut (e.g. a badge).
+          */
+         suspend operator fun invoke(
+             overrideBasicShortcutName: String? = null,
+             basicShortcutExtras: Bundle? = null,
++            forceBasicShortcut: Boolean = false,
++            basicShortcutIconDecorator: ((Bitmap) -> Bitmap)? = null,
+         ) {
+             val session = store.state.selectedTab ?: return
+             shortcutManager.requestPinShortcut(
+@@ -53,6 +58,8 @@ class WebAppUseCases(
+                 session,
+                 overrideBasicShortcutName,
+                 basicShortcutExtras,
++                forceBasicShortcut,
++                basicShortcutIconDecorator,
+             )
+         }
+     }
+diff --git a/components/feature/tabs/src/main/java/mozilla/components/feature/tabs/CustomTabsUseCases.kt b/components/feature/tabs/src/main/java/mozilla/components/feature/tabs/CustomTabsUseCases.kt
+index c4aa9e33..8822772c 100644
+--- a/components/feature/tabs/src/main/java/mozilla/components/feature/tabs/CustomTabsUseCases.kt
++++ b/components/feature/tabs/src/main/java/mozilla/components/feature/tabs/CustomTabsUseCases.kt
+@@ -32,11 +32,13 @@ class CustomTabsUseCases(
+             private: Boolean = false,
+             additionalHeaders: Map<String, String>? = null,
+             source: SessionState.Source,
++            contextId: String? = null,
+         ): String {
+             val loadUrlFlags = EngineSession.LoadUrlFlags.external()
+             val tab =
+                 createCustomTab(
+                     url = url,
++                    contextId = contextId,
+                     private = private,
+                     source = source,
+                     config = customTabConfig,
