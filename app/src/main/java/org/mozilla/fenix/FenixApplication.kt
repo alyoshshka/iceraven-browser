@@ -403,6 +403,9 @@ open class FenixApplication : Application(), Provider, ThemeProvider {
 
         initializeRemoteSettingsSupport()
 
+        // Profiles: per-profile proxy extension, installed before tabs are restored
+        org.mozilla.fenix.profiles.ProfileProxy.start(this, components.core.engine, applicationScope)
+
         restoreBrowserState()
         restoreDownloads()
         restoreMessaging()

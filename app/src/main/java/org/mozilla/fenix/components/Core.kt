@@ -394,6 +394,8 @@ class Core(
                 ProtectionsDashboardMiddleware(protectionsStorage),
                 // Profiles: keeps kept tabs unsuspended and at high priority; must precede SessionPrioritizationMiddleware
                 org.mozilla.fenix.profiles.KeepAliveMiddleware(),
+                // Profiles: holds back engine session creation of proxied profiles until the proxy extension is ready
+                org.mozilla.fenix.profiles.ProxyGateMiddleware(),
                 SessionPrioritizationMiddleware(),
                 SaveToPDFMiddleware(context),
                 FxSuggestFactsMiddleware(),
