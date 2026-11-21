@@ -7,6 +7,7 @@
 # external-link chooser ("Open link in": one-tap rows, Always rule, site-rule removal, setting off), profile UX (toolbar chip,
 # chip dialog "Always open <host> in this profile", "New tab in profile…" from the tab counter, tab tray profile filter),
 # keep-alive (a kept background tab keeps posting web notifications; Stop from its notification),
+# per-profile proxy (Work through a local SOCKS5 server, Default direct, fails closed when the proxy is down; raven/e2e-socks.py),
 # no crash in logcat.
 # Web content comes from a tiny local server (raven/e2e-server.py) that this script starts on the machine running adb and
 # kills on exit. It serves raven/e2e-page.html (text/html) and /e2e.txt (attachment). The device reaches it at $RAVEN_E2E_HOST.
@@ -56,9 +57,10 @@ log() { echo "[e2e] $*"; }
 
 # ---- local test server ---------------------------------------------------------------------------
 HOST=${RAVEN_E2E_HOST:-10.0.2.2}
-SRV_PID=""
-cleanup() { [ -n "$SRV_PID" ] && kill "$SRV_PID" 2>/dev/null; rm -f "$PORT_FILE"; }
+SRV_PID=""; SOCKS_PID=""
+cleanup() { [ -n "$SRV_PID" ] && kill "$SRV_PID" 2>/dev/null; [ -n "$SOCKS_PID" ] && kill "$SOCKS_PID" 2>/dev/null; rm -f "$PORT_FILE" "$SOCKS_FILE" "$SOCKS_FILE.count" "$SOCKS_FILE.log"; }
 PORT_FILE=$(mktemp)
+SOCKS_FILE=$(mktemp)
 trap cleanup EXIT
 trap 'exit 130' INT TERM
 python3 -I "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/e2e-server.py" "$PORT_FILE" &
@@ -677,6 +679,89 @@ check_always_open_via_chip() {
   dump; if [ "$v" = 'who=default' ] && ! ui_query has '^Profile: '; then pass "$name"; else fail "$name" "rule OFF: expected who=default, saw $v"; fi
 }
 
+# ---- per-profile proxy ---------------------------------------------------------------------------
+# Work's proxy is a SOCKS5 server on this machine (raven/e2e-socks.py), exposed on the device's 127.0.0.1 with adb reverse.
+socks_count() { cat "$SOCKS_FILE.count" 2>/dev/null || echo 0; }
+# Settings > Profiles > Work > proxy section: <socks5|none> [port]; saves the dialog.
+set_work_proxy() {
+  local kind=$1 port=${2:-} xy
+  open_work_editor || return 1
+  if [ "$kind" = none ]; then
+    tap_text_scroll '^None \(direct\)$' || return 1
+  else
+    tap_text_scroll '^SOCKS5$' || return 1
+    # host defaults to 127.0.0.1; type the port
+    tap_text_scroll '^Proxy port$|^Proxy port' || return 1
+    sh_ input text "$port"; sleep 1
+    back; wait_for_text '^Edit profile$' 10 || return 1
+  fi
+  tap_text_scroll '^Save$' || return 1
+  wait_for_text '^Add profile$' 10
+}
+
+check_profile_proxy() {
+  local name='per-profile proxy: Work through SOCKS5 (fails closed), Default direct' v n0 n1 end ok
+  python3 -I "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/e2e-socks.py" "$SOCKS_FILE" "$HOST" &
+  SOCKS_PID=$!
+  for _ in $(seq 50); do [ -s "$SOCKS_FILE" ] && break; sleep 0.1; done
+  local sport; sport=$(cat "$SOCKS_FILE")
+  [ -n "$sport" ] || { fail "$name" "socks server did not start"; return 1; }
+  A reverse "tcp:$sport" "tcp:$sport" >/dev/null || { fail "$name" "adb reverse for the proxy failed"; return 1; }
+  A reverse "tcp:$PORT" "tcp:$PORT" >/dev/null 2>&1 || true
+
+  set_work_proxy socks5 "$sport" || { fail "$name" "could not set Work's proxy in the profile editor"; shot proxy-editor; return 1; }
+
+  # Work: page loads and the SOCKS server saw the connection.
+  n0=$(socks_count)
+  open_work_tab || { fail "$name" "Work tab did not open"; return 1; }
+  v=$(read_page_value 40) || { fail "$name" "Work page not readable through the proxy"; return 1; }
+  n1=$(socks_count)
+  log "Work via SOCKS: value $v, CONNECTs $n0 -> $n1"
+  if [ "$v" != none ] && [ "$v" != 'who=work' ]; then fail "$name" "Work page loaded with unexpected value $v"; return 1; fi
+  [ "$n1" -gt "$n0" ] || { fail "$name" "Work page loaded but the SOCKS server saw no connection ($n0 -> $n1)"; return 1; }
+  shot proxy-work
+
+  # Cold start: the first Work load after a restart must already go through the proxy (the app holds profile tabs back
+  # until the proxy extension is ready).
+  sh_ am force-stop "$PKG"; sleep 2
+  n0=$(socks_count)
+  sh_ am start -n "$PKG/$HOME_ACT" >/dev/null; wait_browser_ready 90 || log "browser UI not confirmed after cold start"
+  open_work_tab || { fail "$name" "Work tab did not open after a cold start"; return 1; }
+  v=$(read_page_value 60) || { fail "$name" "Work page not readable after a cold start"; return 1; }
+  n1=$(socks_count)
+  log "Work after cold start: value $v, CONNECTs $n0 -> $n1"
+  [ "$n1" -gt "$n0" ] || { fail "$name" "first Work load after a cold start did not go through the proxy ($n0 -> $n1)"; return 1; }
+
+  # Default: loads, proxy not used.
+  n0=$(socks_count)
+  view_default "$(read_url)"
+  wait_value who=default 40 || { fail "$name" "Default page did not load"; return 1; }
+  n1=$(socks_count)
+  [ "$n1" -eq "$n0" ] || { fail "$name" "Default traffic reached the SOCKS server ($n0 -> $n1)"; return 1; }
+
+  # Proxy down: a Work load must fail (error page), never fall back to a direct connection.
+  kill "$SOCKS_PID" 2>/dev/null; wait "$SOCKS_PID" 2>/dev/null; SOCKS_PID=""
+  # (the device-side adb reverse port stays open, but nothing answers behind it: connections are dropped)
+  view_default "$(read_url)"; sleep 4
+  open_selected_in_work || { fail "$name" "could not hand the tab to Work"; return 1; }
+  ok=0; end=$((SECONDS + 40))
+  while [ $SECONDS -lt "$end" ]; do
+    dump
+    if ui_query has '(?i)proxy|^unable to connect$'; then ok=1; break; fi
+    sleep 2
+  done
+  shot proxy-down
+  [ "$ok" = 1 ] || { fail "$name" "no proxy error page for Work with the proxy down"; return 1; }
+  log "proxy-down error page: $(ui_grep '(?i)unable to connect|[^.]*proxy[^.]*' | head -c 150)"
+  # (the toolbar may still show the previous page's URL fragment, so the error page itself is the evidence)
+
+  # Back to None: Work loads directly again.
+  set_work_proxy none || { fail "$name" "could not set Work's proxy back to None"; return 1; }
+  open_work_tab || { fail "$name" "Work tab did not open after removing the proxy"; return 1; }
+  v=$(read_page_value 40) || { fail "$name" "Work page not readable after removing the proxy"; return 1; }
+  pass "$name (Work via proxy, Default direct, proxy down -> error page, None -> direct again; now $v)"
+}
+
 check_no_crash() {
   local name='no FATAL EXCEPTION in logcat'
   A logcat -d > "$OUT/logcat.txt" 2>&1 || true
@@ -757,6 +842,7 @@ check_install_launch && {
   check_tabs_filter
   check_always_open_via_chip
   check_keep_alive
+  check_profile_proxy
 }
 check_no_crash
 
