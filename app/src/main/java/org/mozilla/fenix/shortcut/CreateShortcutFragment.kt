@@ -4,6 +4,7 @@
 
 package org.mozilla.fenix.shortcut
 
+import android.graphics.Bitmap
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -18,6 +19,8 @@ import org.mozilla.fenix.R
 import org.mozilla.fenix.databinding.FragmentCreateShortcutBinding
 import org.mozilla.fenix.ext.loadIntoView
 import org.mozilla.fenix.ext.requireComponents
+import org.mozilla.fenix.profiles.ProfileAppearance
+import org.mozilla.fenix.profiles.badgeIcon
 import org.mozilla.fenix.profiles.profileShortcutExtras
 
 class CreateShortcutFragment : DialogFragment() {
@@ -53,10 +56,22 @@ class CreateShortcutFragment : DialogFragment() {
             binding.cancelButton.setOnClickListener { dismiss() }
             binding.addButton.setOnClickListener {
                 val text = binding.shortcutText.text.toString().trim()
-                // Profiles: remember the tab's profile and desktop mode in the shortcut.
-                val extras = profileShortcutExtras(tab)
+                // Profiles: remember the tab's profile, desktop mode and "open as app" in the shortcut.
+                val extras = profileShortcutExtras(tab, binding.appModeSwitch.isChecked, text)
+                val container = tab.contextId?.let { requireComponents.core.store.state.containers[it] }
+                val badge: ((Bitmap) -> Bitmap)? = container?.let {
+                    val color = ProfileAppearance.colorOf(it)
+                    val emoji = ProfileAppearance.emojiOf(it.contextId);
+                    { icon -> badgeIcon(icon, color, emoji) }
+                }
                 requireActivity().lifecycleScope.launch {
-                    requireComponents.useCases.webAppUseCases.addToHomescreen(text, extras)
+                    requireComponents.useCases.webAppUseCases.addToHomescreen(
+                        overrideBasicShortcutName = text,
+                        basicShortcutExtras = extras,
+                        // A profile's shortcut keeps its profile even if the site is an installable web app.
+                        forceBasicShortcut = container != null,
+                        basicShortcutIconDecorator = badge,
+                    )
                 }
                 dismiss()
             }

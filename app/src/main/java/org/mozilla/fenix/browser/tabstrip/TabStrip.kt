@@ -465,7 +465,7 @@ private fun TabItem(
 
                 // Profiles: dot before the title.
                 state.profileColor?.let {
-                    ProfileTabIcon(icon = state.profileIcon, color = Color(it))
+                    ProfileTabIcon(icon = state.profileIcon, color = Color(it), profileId = state.profileId)
                     Spacer(modifier = Modifier.size(6.dp))
                 }
 

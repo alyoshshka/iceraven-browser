@@ -20,15 +20,21 @@ private const val MAX_LABEL = 14
 fun BrowserState.toolbarProfileOf(tab: TabSessionState?): ContainerState? =
     tab?.takeIf { !it.content.private }?.contextId?.let { containers[it] }
 
-/** Builds the toolbar action for [profile]: its icon tinted with its color; [onClick] is used for tap and long-press. */
+/**
+ * Builds the toolbar action for [profile]: its icon tinted with its color (custom color first) and its name; with an
+ * emoji the emoji goes in front of the name and replaces the icon. [onClick] is used for
+ * tap and long-press.
+ */
 fun profileToolbarAction(
     context: Context,
     profile: ContainerState?,
     onClick: BrowserToolbarInteraction,
 ): Action {
+    val emoji = profile?.let { ProfileAppearance.emojiOf(it.contextId) }
     val icon = profile?.icon ?: ContainerState.Icon.CIRCLE
-    val color = profile?.color?.toArgb()
-    val drawable = AppCompatResources.getDrawable(context, icon.drawableRes())?.mutate()
+    val color = profile?.let { ProfileAppearance.colorOf(it) }
+    // The emoji replaces the icon: it is part of the label and no icon is drawn.
+    val drawable = if (emoji != null) null else AppCompatResources.getDrawable(context, icon.drawableRes())?.mutate()
     return Action.ActionButton(
         drawable = drawable,
         shouldTint = false,
@@ -39,6 +45,6 @@ fun profileToolbarAction(
         onClick = onClick,
         onLongClick = onClick,
         tint = color,
-        label = profile?.name?.let { if (it.length > MAX_LABEL) it.take(MAX_LABEL - 1) + "…" else it },
+        label = profile?.name?.let { withEmoji(emoji, if (it.length > MAX_LABEL) it.take(MAX_LABEL - 1) + "…" else it) },
     )
 }

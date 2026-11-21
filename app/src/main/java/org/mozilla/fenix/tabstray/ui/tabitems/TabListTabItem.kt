@@ -169,7 +169,7 @@ private fun TabContent(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 // Profiles: dot at the start of the URL line.
                 tab.profileColor?.let {
-                    ProfileTabIcon(icon = tab.profileIcon, color = Color(it))
+                    ProfileTabIcon(icon = tab.profileIcon, color = Color(it), profileId = tab.profileId)
                     Spacer(modifier = Modifier.width(FirefoxTheme.layout.space.static100))
                 }
 

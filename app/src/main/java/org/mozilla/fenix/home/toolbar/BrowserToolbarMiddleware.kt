@@ -16,6 +16,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChangedBy
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import mozilla.components.browser.state.search.SearchEngine
@@ -97,6 +98,7 @@ import org.mozilla.fenix.profiles.OpenInProfileDialogFragment
 import org.mozilla.fenix.profiles.ProfileActionsDialogFragment
 import org.mozilla.fenix.profiles.findFragmentActivity
 import org.mozilla.fenix.profiles.profileToolbarAction
+import org.mozilla.fenix.profiles.ProfileAppearance
 import org.mozilla.fenix.profiles.toolbarProfileOf
 import org.mozilla.fenix.home.toolbar.TabCounterInteractions.TabCounterClicked
 import org.mozilla.fenix.home.toolbar.TabCounterInteractions.TabCounterLongClicked
@@ -181,6 +183,7 @@ class BrowserToolbarMiddleware(
 ) : Middleware<BrowserToolbarState, BrowserToolbarAction> {
     private var syncCurrentSearchEngineJob: Job? = null
     private var observeBrowserSearchStateJob: Job? = null
+    private var observeProfileLooksJob: Job? = null
 
     @Suppress("LongMethod", "CyclomaticComplexMethod", "CognitiveComplexMethod")
     override fun invoke(
@@ -384,11 +387,20 @@ class BrowserToolbarMiddleware(
                     )
                 }
         }
+
+        // Profiles: a custom color or emoji can change without the container changing.
+        observeProfileLooksJob?.cancel()
+        observeProfileLooksJob = scope.launch {
+            ProfileAppearance.looks.drop(1).collect {
+                updateStartPageActions(store = store, selectedSearchEngine = reconcileSelectedEngine())
+            }
+        }
     }
 
     private fun stopSearchStateUpdates() {
         syncCurrentSearchEngineJob?.cancel()
         observeBrowserSearchStateJob?.cancel()
+        observeProfileLooksJob?.cancel()
     }
 
     private fun updateStartPageActions(

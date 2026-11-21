@@ -15,6 +15,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChangedBy
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -159,6 +160,7 @@ import org.mozilla.fenix.tabstray.redux.state.Page
 import org.mozilla.fenix.translations.TranslationsEnabledSettings
 import org.mozilla.fenix.utils.Settings
 import org.mozilla.fenix.profiles.OpenInProfileDialogFragment
+import org.mozilla.fenix.profiles.ProfileAppearance
 import org.mozilla.fenix.profiles.ProfileActionsDialogFragment
 import org.mozilla.fenix.profiles.findFragmentActivity
 import org.mozilla.fenix.profiles.profileToolbarAction
@@ -1163,6 +1165,10 @@ class BrowserToolbarMiddleware(
                 .collect {
                     updateStartPageActions(store)
                 }
+        }
+        // A custom color or emoji can change without the container changing.
+        scope.launch {
+            ProfileAppearance.looks.drop(1).collect { updateStartPageActions(store) }
         }
     }
 

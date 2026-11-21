@@ -27,6 +27,7 @@ import org.mozilla.fenix.customtabs.FennecWebAppIntentProcessor
 import org.mozilla.fenix.home.intent.FennecBookmarkShortcutsIntentProcessor
 import org.mozilla.fenix.intent.ExternalDeepLinkIntentProcessor
 import org.mozilla.fenix.perf.lazyMonitored
+import org.mozilla.fenix.profiles.ProfileAppIntentProcessor
 import org.mozilla.fenix.profiles.ProfileLinkIntentProcessor
 import org.mozilla.fenix.profiles.ProfileShortcutIntentProcessor
 import org.mozilla.fenix.shortcut.PasswordManagerIntentProcessor
@@ -81,6 +82,7 @@ class IntentProcessors(
         listOf(
             WebAppIntentProcessor(store, customTabsUseCases.addWebApp, sessionUseCases.loadUrl, manifestStorage),
             FennecWebAppIntentProcessor(context, customTabsUseCases, manifestStorage),
+            profileAppIntentProcessor, // Profiles
         )
     }
 
@@ -88,7 +90,12 @@ class IntentProcessors(
         FennecBookmarkShortcutsIntentProcessor(tabsUseCases.addTab)
     }
 
-    // Profiles: opens home screen shortcuts in the profile they were created from.
+    // Profiles: opens home screen shortcuts as apps (own window) in the profile they were created from.
+    val profileAppIntentProcessor by lazyMonitored {
+        ProfileAppIntentProcessor(store, customTabsUseCases.add, sessionUseCases.requestDesktopSite)
+    }
+
+    // Profiles: opens home screen shortcuts as a tab in the profile they were created from.
     val profileShortcutIntentProcessor by lazyMonitored {
         ProfileShortcutIntentProcessor(
             store,
