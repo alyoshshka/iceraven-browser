@@ -1,0 +1,20 @@
+[
+  {
+    "namespace": "ravenProxy",
+    "description": "Per-profile proxy configuration",
+    "functions": [
+      {
+        "name": "setConfig",
+        "type": "function",
+        "description": "Sets the proxy of each profile (JSON text) and persists it",
+        "parameters": [
+          {
+            "type": "string",
+            "name": "json"
+          }
+        ],
+        "async": true
+      }
+    ]
+  }
+]

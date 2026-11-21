@@ -122,4 +122,21 @@
         <item quantity="one">Imported %1$d of %2$d file</item>
         <item quantity="other">Imported %1$d of %2$d files</item>
     </plurals>
+    <!-- Proxy -->
+    <string name="profiles_proxy_title" translatable="false">Proxy</string>
+    <string name="profiles_proxy_none" translatable="false">None (direct)</string>
+    <string name="profiles_proxy_socks5" translatable="false">SOCKS5</string>
+    <string name="profiles_proxy_http" translatable="false">HTTP</string>
+    <string name="profiles_proxy_http_warning" translatable="false">HTTP proxies can read unencrypted http:// pages and give weaker leak protection; prefer SOCKS5.</string>
+    <string name="profiles_proxy_fail_closed" translatable="false">If the proxy app isn\'t running, pages in this profile won\'t load.</string>
+    <string name="profiles_proxy_host_label" translatable="false">Proxy host</string>
+    <string name="profiles_proxy_port_label" translatable="false">Proxy port</string>
+    <string name="profiles_proxy_port_error" translatable="false">Enter a port from 1 to 65535</string>
+    <string name="profiles_proxy_check" translatable="false">Check</string>
+    <string name="profiles_proxy_reachable" translatable="false">Proxy reachable</string>
+    <string name="profiles_proxy_unreachable" translatable="false">Proxy not reachable</string>
+    <string name="profiles_proxy_status" translatable="false">Proxy: %1$s %2$s:%3$d · %4$s</string>
+    <string name="profiles_proxy_status_reachable" translatable="false">reachable</string>
+    <string name="profiles_proxy_status_unreachable" translatable="false">not reachable</string>
+    <string name="profiles_proxy_checking" translatable="false">checking…</string>
 </resources>

@@ -88,10 +88,11 @@ class ProfilesSettingsFragment : Fragment(), SystemInsetsPaddedFragment {
                 },
                 rules = rules,
                 limited = limited,
-                onSave = { existing, name, color, icon, limitSites, removedSites ->
+                onSave = { existing, name, color, icon, limitSites, removedSites, proxy ->
                     // Adding a container with an existing contextId replaces it (see ContainerReducer).
                     val contextId = existing?.contextId ?: UUID.randomUUID().toString()
                     storage.setName(contextId, name)
+                    ProfileProxy.set(requireContext(), contextId, proxy)
                     if (existing != null) {
                         removedSites.forEach { storage.removeRule(it) }
                         storage.setLimited(contextId, limitSites)
@@ -129,6 +130,7 @@ class ProfilesSettingsFragment : Fragment(), SystemInsetsPaddedFragment {
         components.core.engine.clearDataForContext(container.contextId)
         store.dispatch(ContainerAction.RemoveContainerAction(container.contextId))
         ProfileStorage(requireContext()).deleteProfileFiles(container.contextId)
+        ProfileProxy.remove(requireContext(), container.contextId)
     }
 }
 
@@ -161,6 +163,7 @@ private fun ProfilesSettingsScreen(
         icon: ContainerState.Icon,
         limited: Boolean,
         removedSites: Set<String>,
+        proxy: ProfileProxySettings,
     ) -> Unit,
     onDelete: (ContainerState) -> Unit,
 ) {
@@ -207,9 +210,10 @@ private fun ProfilesSettingsScreen(
                 rules.filterValues { it == existing.contextId }.keys.sorted()
             }.orEmpty(),
             limited = current.existing?.let { it.contextId in limited } ?: false,
+            proxy = current.existing?.let { ProfileProxy.get(it.contextId) } ?: ProfileProxySettings(),
             onDismiss = { dialog = null },
-            onSave = { name, color, icon, limitSites, removedSites ->
-                onSave(current.existing, name, color, icon, limitSites, removedSites)
+            onSave = { name, color, icon, limitSites, removedSites, proxy ->
+                onSave(current.existing, name, color, icon, limitSites, removedSites, proxy)
                 dialog = null
             },
         )
@@ -312,7 +316,7 @@ private fun ProfilesSettingsScreenPreview() {
                 ContainerState("1", "Home", ContainerState.Color.GREEN, ContainerState.Icon.CIRCLE),
                 ContainerState("2", "Work", ContainerState.Color.BLUE, ContainerState.Icon.CIRCLE),
             ),
-            onSave = { _, _, _, _, _, _ -> },
+            onSave = { _, _, _, _, _, _, _ -> },
             onDelete = {},
         )
     }
