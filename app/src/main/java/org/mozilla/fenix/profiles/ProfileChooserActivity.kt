@@ -94,12 +94,18 @@ class ProfileChooserActivity : ComponentActivity() {
                         openLink(url, contextId)
                         finish()
                     },
-                    onCreate = { name, color, icon, always ->
+                    onCreate = { name, color, emoji, icon, always ->
                         val contextId = UUID.randomUUID().toString()
                         storage.setName(contextId, name)
+                        val containerColor = ProfileAppearance.apply(this, contextId, color, emoji)
                         components.core.store.dispatch(
                             ContainerAction.AddContainerAction(
-                                ContainerState(contextId = contextId, name = name, color = color, icon = icon),
+                                ContainerState(
+                                    contextId = contextId,
+                                    name = name,
+                                    color = containerColor,
+                                    icon = if (emoji != null) ContainerState.Icon.CIRCLE else icon,
+                                ),
                             ),
                         )
                         if (always) storage.setRule(host, contextId)
@@ -142,7 +148,7 @@ class ProfileChooserActivity : ComponentActivity() {
  * @param profiles The profiles to list, sorted by name.
  * @param defaultColor Color preselected for a new profile.
  * @param onChosen Invoked with the chosen contextId (null for Default) and whether to remember it for [host].
- * @param onCreate Invoked with a new profile's name, color and icon, and whether to remember it for [host].
+ * @param onCreate Invoked with a new profile's name, ARGB color, emoji (or null) and icon, and whether to remember it for [host].
  * @param onDismiss Invoked when the dialog is cancelled.
  */
 @Composable
@@ -150,9 +156,9 @@ fun ProfileChooserDialog(
     url: String,
     host: String,
     profiles: List<ContainerState>,
-    defaultColor: ContainerState.Color,
+    defaultColor: Int,
     onChosen: (contextId: String?, always: Boolean) -> Unit,
-    onCreate: (name: String, color: ContainerState.Color, icon: ContainerState.Icon, always: Boolean) -> Unit,
+    onCreate: (name: String, color: Int, emoji: String?, icon: ContainerState.Icon, always: Boolean) -> Unit,
     onDismiss: () -> Unit,
 ) {
     var always by remember { mutableStateOf(false) }
@@ -231,7 +237,8 @@ fun ProfileChooserDialog(
                     ChooserRow(
                         label = profile.name,
                         painter = painterResource(profile.icon.drawableRes()),
-                        tint = profile.color.toComposeColor(),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        leading = { ProfileBadge(container = profile) },
                         onClick = { onChosen(profile.contextId, always) },
                     )
                 }
@@ -248,7 +255,7 @@ fun ProfileChooserDialog(
                     NewProfileForm(
                         initialName = needle.takeIf { !showDefault && shown.isEmpty() }.orEmpty(),
                         defaultColor = defaultColor,
-                        onCreate = { name, color, icon -> onCreate(name, color, icon, always) },
+                        onCreate = { name, color, emoji, icon -> onCreate(name, color, emoji, icon, always) },
                     )
                 } else {
                     ChooserRow(
@@ -278,12 +285,14 @@ private fun ChooserRow(
     tint: Color,
     onClick: () -> Unit,
     showChevron: Boolean = true,
+    leading: (@Composable () -> Unit)? = null,
 ) {
     IconListItem(
         label = label,
         onClick = onClick,
         beforeIconPainter = painter,
         beforeIconTint = tint,
+        beforeIconContent = leading,
         afterIconPainter = if (showChevron) painterResource(iconsR.drawable.mozac_ic_chevron_right_24) else null,
         contentPaddingListItem = PaddingValues(horizontal = 12.dp, vertical = 12.dp),
     )
@@ -293,18 +302,19 @@ private fun ChooserRow(
 @Composable
 private fun NewProfileForm(
     initialName: String,
-    defaultColor: ContainerState.Color,
-    onCreate: (name: String, color: ContainerState.Color, icon: ContainerState.Icon) -> Unit,
+    defaultColor: Int,
+    onCreate: (name: String, color: Int, emoji: String?, icon: ContainerState.Icon) -> Unit,
 ) {
     var name by remember { mutableStateOf(initialName) }
     var color by remember { mutableStateOf(defaultColor) }
     var icon by remember { mutableStateOf(ContainerState.Icon.CIRCLE) }
+    var emoji by remember { mutableStateOf<String?>(null) }
     var nameError by remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
     LaunchedEffect(Unit) { focusRequester.requestFocus() }
     fun submit() {
         val trimmed = name.trim()
-        if (trimmed.isEmpty()) nameError = true else onCreate(trimmed, color, icon)
+        if (trimmed.isEmpty()) nameError = true else onCreate(trimmed, color, emoji?.takeIf { it.isNotBlank() }, icon)
     }
 
     Column(modifier = Modifier.padding(top = 8.dp)) {
@@ -332,21 +342,14 @@ private fun NewProfileForm(
             keyboardActions = KeyboardActions(onDone = { submit() }),
         )
         Spacer(modifier = Modifier.height(16.dp))
-        Text(
-            text = stringResource(R.string.profiles_color_label),
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            style = FirefoxTheme.typography.caption,
+        ProfileAppearancePicker(
+            color = color,
+            onColorChange = { color = it },
+            icon = icon,
+            onIconChange = { icon = it },
+            emoji = emoji,
+            onEmojiChange = { emoji = it },
         )
-        Spacer(modifier = Modifier.height(8.dp))
-        ProfileColorPicker(selected = color, onSelected = { color = it })
-        Spacer(modifier = Modifier.height(16.dp))
-        Text(
-            text = stringResource(R.string.profiles_icon_label),
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            style = FirefoxTheme.typography.caption,
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        ProfileIconPicker(selected = icon, color = color.toComposeColor(), onSelected = { icon = it })
         Spacer(modifier = Modifier.height(16.dp))
         FilledButton(
             text = stringResource(R.string.profiles_create_and_open),

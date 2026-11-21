@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -46,15 +47,20 @@ fun ProfileTabsFilterChip(
     val allLabel = stringResource(R.string.profiles_tabs_filter_all)
     val defaultLabel = stringResource(R.string.profiles_default_name)
 
+    val looks by ProfileAppearance.looks.collectAsState() // emoji of profiles
     val options: List<Pair<String?, String>> = buildList {
         add(null to allLabel)
         profileIds.map { id ->
-            id to if (id == ProfileStorage.DEFAULT_ID) defaultLabel else containers[id]?.name ?: id
+            id to if (id == ProfileStorage.DEFAULT_ID) {
+                defaultLabel
+            } else {
+                withEmoji(looks[id]?.emoji, containers[id]?.name ?: id)
+            }
         }.sortedBy { it.second.lowercase() }.forEach { add(it) }
     }
     val label = options.firstOrNull { it.first == selected }?.second ?: allLabel
     val iconOf: (String?) -> Int = { id ->
-        containers[id]?.icon?.drawableRes() ?: if (id == null) iconsR.drawable.mozac_ic_tab_24 else iconsR.drawable.mozac_ic_globe_24
+        containers[id]?.takeIf { looks[id]?.emoji == null }?.icon?.drawableRes() ?: if (id == null) iconsR.drawable.mozac_ic_tab_24 else iconsR.drawable.mozac_ic_globe_24
     }
 
     // Chip and DropdownMenu in a common parent so the menu position is calculated correctly.

@@ -4,12 +4,20 @@
 
 package org.mozilla.fenix.customtabs
 
+import android.app.ActivityManager
 import android.app.assist.AssistContent
 import android.os.Bundle
 import android.view.MotionEvent
 import androidx.annotation.VisibleForTesting
 import androidx.core.net.toUri
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.mapNotNull
+import kotlinx.coroutines.launch
+import mozilla.components.lib.state.ext.flow
 import mozilla.components.browser.state.selector.findCustomTab
 import mozilla.components.browser.state.state.SessionState
 import mozilla.components.browser.state.store.BrowserStore
@@ -19,6 +27,9 @@ import mozilla.components.support.utils.SafeIntent
 import org.mozilla.fenix.HomeActivity
 import org.mozilla.fenix.ext.components
 import org.mozilla.fenix.ext.getIntentSessionId
+import org.mozilla.fenix.profiles.ProfileAppMode
+import org.mozilla.fenix.profiles.ProfileAppearance
+import org.mozilla.fenix.profiles.badgeIcon
 
 const val EXTRA_IS_SANDBOX_CUSTOM_TAB = "org.mozilla.fenix.customtabs.EXTRA_IS_SANDBOX_CUSTOM_TAB"
 
@@ -32,6 +43,7 @@ open class ExternalAppBrowserActivity : HomeActivity() {
 
     override fun onResume() {
         super.onResume()
+        updateProfileAppTask()
 
         if (!hasExternalTab()) {
             // An ExternalAppBrowserActivity is always bound to a specific tab. If this tab doesn't
@@ -57,6 +69,35 @@ open class ExternalAppBrowserActivity : HomeActivity() {
             }
         }
     }
+
+    /**
+     * Profiles: gives the window of a home screen shortcut opened as an app its own entry in the recent apps, with the
+     * label of the shortcut and the icon of the site (with the profile badge), and keeps it up to date.
+     */
+    private fun updateProfileAppTask() {
+        val tabId = getExternalTabId()
+        if (!ProfileAppMode.isAppSession(tabId) || profileAppTaskJob != null) return
+        val store = components.core.store
+        profileAppTaskJob = lifecycleScope.launch {
+            store.flow()
+                .mapNotNull { state -> state.findCustomTab(tabId!!) }
+                .map { Triple(it.content.title, it.content.icon, it.contextId) }
+                .distinctUntilChanged { old, new -> old.first == new.first && old.second === new.second }
+                .collect { (title, icon, contextId) ->
+                    val label = ProfileAppMode.labelOf(tabId).orEmpty().ifBlank { title }
+                    val container = contextId?.let { store.state.containers[it] }
+                    val badged = icon?.takeUnless { it.isRecycled }?.let {
+                        container?.let { c ->
+                            badgeIcon(it, ProfileAppearance.colorOf(c), ProfileAppearance.emojiOf(c.contextId))
+                        } ?: it
+                    }
+                    @Suppress("DEPRECATION")
+                    setTaskDescription(ActivityManager.TaskDescription(label.ifBlank { null }, badged))
+                }
+        }
+    }
+
+    private var profileAppTaskJob: Job? = null
 
     /**
      * [ExternalAppBrowserActivity], which is responsible for custom tabs, shares the [BrowserStore] and observing

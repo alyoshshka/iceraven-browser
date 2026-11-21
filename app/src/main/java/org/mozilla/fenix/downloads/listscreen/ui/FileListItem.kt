@@ -167,7 +167,7 @@ private fun FileListItemMainContent(
         icon = if (isFailed) iconsR.drawable.mozac_ic_critical_24 else fileItem.icon,
         isSelected = isSelected,
         // Profiles: dot before the profile name.
-        descriptionLeading = fileItem.profileColor?.let { { ProfileTabIcon(icon = fileItem.profileIcon, color = Color(it)) } },
+        descriptionLeading = fileItem.profileColor?.let { { ProfileTabIcon(icon = fileItem.profileIcon, color = Color(it), profileId = fileItem.profileId) } },
         modifier =
             Modifier.swipeToDismissFade(swipeToDismissBoxState)
                 .selectableListItemProgressSemantics(status = fileItem.status)

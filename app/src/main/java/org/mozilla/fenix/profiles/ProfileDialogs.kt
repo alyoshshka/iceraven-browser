@@ -64,7 +64,6 @@ import org.mozilla.fenix.compose.list.SwitchListItem
 import org.mozilla.fenix.theme.FirefoxTheme
 
 private val ColorCircleSize = 40.dp
-private const val COLORS_PER_ROW = 4
 private const val ICONS_PER_ROW = 5
 
 /**
@@ -72,22 +71,23 @@ private const val ICONS_PER_ROW = 5
  * also shows the profile's designated sites and the "Limit to designated sites" switch.
  *
  * @param existing The profile being edited, or null when adding.
- * @param defaultColor Color preselected when adding (the first color no other profile uses).
+ * @param defaultColor ARGB color preselected when adding (the first color no other profile uses).
  * @param sites Hosts that always open in the profile being edited.
  * @param limited Whether the profile being edited is limited to its designated sites.
  * @param onDismiss Invoked when the dialog is cancelled.
  * @param proxy The proxy of the profile being edited.
- * @param onSave Invoked with the trimmed, non-empty name, the chosen color and icon, the limit switch, the sites
- * the user removed from the list and the chosen proxy.
+ * @param onSave Invoked with the trimmed, non-empty name, the chosen ARGB color, the emoji (null to use the icon),
+ * the chosen icon, the limit switch, the sites the user removed from the list and the chosen proxy.
  */
 @Composable
 fun ProfileEditDialog(
     existing: ContainerState?,
-    defaultColor: ContainerState.Color,
+    defaultColor: Int,
     onDismiss: () -> Unit,
     onSave: (
         name: String,
-        color: ContainerState.Color,
+        color: Int,
+        emoji: String?,
         icon: ContainerState.Icon,
         limited: Boolean,
         removedSites: Set<String>,
@@ -103,8 +103,9 @@ fun ProfileEditDialog(
         mutableStateOf(TextFieldValue(initial, TextRange(initial.length)))
     }
     val name = nameValue.text
-    var color by remember { mutableStateOf(existing?.color ?: defaultColor) }
+    var color by remember { mutableStateOf(existing?.let { ProfileAppearance.colorOf(it) } ?: defaultColor) }
     var icon by remember { mutableStateOf(existing?.icon ?: ContainerState.Icon.CIRCLE) }
+    var emoji by remember { mutableStateOf(existing?.let { ProfileAppearance.emojiOf(it.contextId) }) }
     var limitSites by remember { mutableStateOf(limited) }
     var removedSites by remember { mutableStateOf(emptySet<String>()) }
     var nameError by remember { mutableStateOf(false) }
@@ -162,27 +163,14 @@ fun ProfileEditDialog(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                Text(
-                    text = stringResource(R.string.profiles_color_label),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = FirefoxTheme.typography.caption,
+                ProfileAppearancePicker(
+                    color = color,
+                    onColorChange = { color = it },
+                    icon = icon,
+                    onIconChange = { icon = it },
+                    emoji = emoji,
+                    onEmojiChange = { emoji = it },
                 )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                ProfileColorPicker(selected = color, onSelected = { color = it })
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Text(
-                    text = stringResource(R.string.profiles_icon_label),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = FirefoxTheme.typography.caption,
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                ProfileIconPicker(selected = icon, color = color.toComposeColor(), onSelected = { icon = it })
 
                 ProfileProxySection(
                     type = proxyType,
@@ -226,7 +214,7 @@ fun ProfileEditDialog(
                                 portNumber ?: 0,
                             )
                         }
-                        onSave(trimmed, color, icon, limitSites, removedSites, chosen)
+                        onSave(trimmed, color, emoji?.takeIf { it.isNotBlank() }, icon, limitSites, removedSites, chosen)
                     }
                 },
             )
@@ -238,27 +226,6 @@ fun ProfileEditDialog(
             )
         },
     )
-}
-
-@Composable
-internal fun ProfileColorPicker(
-    selected: ContainerState.Color,
-    onSelected: (ContainerState.Color) -> Unit,
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        ProfileColorPalette.chunked(COLORS_PER_ROW).forEach { rowColors ->
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                rowColors.forEach { option ->
-                    ProfileColorCircle(
-                        color = option.toComposeColor(),
-                        name = stringResource(option.nameRes()),
-                        isSelected = option == selected,
-                        onClick = { onSelected(option) },
-                    )
-                }
-            }
-        }
-    }
 }
 
 @Composable
@@ -465,44 +432,6 @@ private fun ProfileSitesSection(
     }
 }
 
-@Composable
-private fun ProfileColorCircle(
-    color: Color,
-    name: String,
-    isSelected: Boolean,
-    onClick: () -> Unit,
-) {
-    Box(
-        modifier = Modifier
-            .size(ColorCircleSize)
-            .clip(CircleShape)
-            .background(color)
-            .then(
-                if (isSelected) {
-                    Modifier.border(2.dp, MaterialTheme.colorScheme.onSurface, CircleShape)
-                } else {
-                    Modifier
-                },
-            )
-            .clickable(role = Role.RadioButton, onClick = onClick)
-            .semantics {
-                contentDescription = name
-                this.selected = isSelected
-                role = Role.RadioButton
-            },
-        contentAlignment = Alignment.Center,
-    ) {
-        if (isSelected) {
-            Icon(
-                painter = painterResource(iconsR.drawable.mozac_ic_checkmark_24),
-                contentDescription = null,
-                // Profile palette colors are all light enough for a dark check.
-                tint = Color.Black,
-            )
-        }
-    }
-}
-
 /**
  * Profiles: confirmation before deleting [profileName] with its tabs, logins and files.
  */
@@ -548,9 +477,9 @@ private fun ProfileEditDialogPreview() {
         Surface {
             ProfileEditDialog(
                 existing = null,
-                defaultColor = ContainerState.Color.BLUE,
+                defaultColor = ProfileSwatches.first().argb,
                 onDismiss = {},
-                onSave = { _, _, _, _, _, _ -> },
+                onSave = { _, _, _, _, _, _, _ -> },
             )
         }
     }
