@@ -6,6 +6,7 @@
 # Checks: install+launch (incl. first-run onboarding), create profile "Work", cookie isolation, app-only downloads,
 # external-link chooser ("Open link in": one-tap rows, Always rule, site-rule removal, setting off), profile UX (toolbar chip,
 # chip dialog "Always open <host> in this profile", "New tab in profile…" from the tab counter, tab tray profile filter),
+# keep-alive (a kept background tab keeps posting web notifications; Stop from its notification),
 # no crash in logcat.
 # Web content comes from a tiny local server (raven/e2e-server.py) that this script starts on the machine running adb and
 # kills on exit. It serves raven/e2e-page.html (text/html) and /e2e.txt (attachment). The device reaches it at $RAVEN_E2E_HOST.
@@ -684,6 +685,50 @@ check_no_crash() {
   else pass "$name"; fi
 }
 
+# ---- keep-alive (notifications while in the background) ----------------------------------------------
+# Highest "raven e2e tick <n>" web notification of the app currently posted (0 if none).
+max_tick() {
+  sh_ dumpsys notification --noredact 2>/dev/null | tr -d '\r' \
+    | grep -oE 'raven e2e tick [0-9]+' | awk '{ if ($4 > m) m = $4 } END { print m + 0 }'
+}
+keep_alive_running() { sh_ dumpsys activity services "$PKG" 2>/dev/null | grep -q 'ProfileKeepAliveService'; }
+
+check_keep_alive() {
+  local name='keep-alive: a kept background tab keeps posting web notifications; "Stop" in its notification ends it'
+  local t0 t1
+  sh_ pm grant "$PKG" android.permission.POST_NOTIFICATIONS >/dev/null 2>&1 || true
+  # Web notifications need a secure context: serve the page as http://localhost on the device (adb reverse).
+  A reverse "tcp:$PORT" "tcp:$PORT" >/dev/null || { fail "$name" "adb reverse failed"; return 1; }
+  view_default "http://localhost:$PORT/e2e-notify.html?n=$(nonce)"
+  tap_text '^Allow notifications$' 20 || { fail "$name" "notify page not shown"; return 1; }
+  tap_text '^(Always|Allow|ALLOW|Always allow)$' 15 || { fail "$name" "no notification permission prompt"; return 1; }
+  open_menu && tap_text '^More( Collapsed)?$' 10 && tap_text '^Keep running in background$' 10 \
+    || { fail "$name" "no 'Keep running in background' menu item"; return 1; }
+  sleep 3
+  keep_alive_running || { fail "$name" "service not running after enabling"; return 1; }
+  # Another tab takes the foreground, then Raven goes to the background.
+  view_default "$(read_url)"; sleep 4
+  t0=$(max_tick)
+  home; sleep 45
+  t1=$(max_tick)
+  log "ticks before/after 45 s in the background: $t0 / $t1"
+  if [ "$t1" -le "$t0" ]; then fail "$name" "no new notification in the background ($t0 -> $t1)"; return 1; fi
+  keep_alive_running || { fail "$name" "service stopped in the background"; return 1; }
+  # "Stop" from the ongoing notification
+  sh_ cmd statusbar expand-notifications >/dev/null 2>&1; sleep 2
+  # Silent notifications are shown collapsed: drag ours down to reveal its actions.
+  dump
+  local xy
+  if xy=$(ui_query center '^Keeping tabs connected$'); then
+    set -- $xy; sh_ input swipe "$1" "$2" "$1" $(( $2 + SCREEN_H / 4 )) 300; sleep 2
+  fi
+  shot keep-alive-notification
+  tap_text '^(Stop|STOP)$' 10 || { sh_ cmd statusbar collapse >/dev/null 2>&1; fail "$name" "no Stop action"; return 1; }
+  sh_ cmd statusbar collapse >/dev/null 2>&1; sleep 3
+  if keep_alive_running; then fail "$name" "service still running after Stop"; return 1; fi
+  pass "$name"
+}
+
 # ---- main ----------------------------------------------------------------------------------------
 A wait-for-device
 for _ in $(seq 60); do [ "$(sh_ getprop sys.boot_completed | tr -d '\r')" = 1 ] && break; sleep 2; done
@@ -711,6 +756,7 @@ check_install_launch && {
   check_new_tab_in_profile
   check_tabs_filter
   check_always_open_via_chip
+  check_keep_alive
 }
 check_no_crash
 

@@ -1,0 +1,13 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>notify</title></head>
+<body><p id="o">notify_0</p><button id="b" style="font-size:2em" onclick="Notification.requestPermission()">Allow notifications</button><script>
+// Test page for raven/e2e.sh (keep-alive): every 10 s it bumps a counter and, once allowed, posts the web notification
+// "raven e2e tick <n>", so the test can see whether the tab keeps running while Raven is in the background.
+var n = 0;
+setInterval(function () {
+  n++;
+  document.title = 'notify_' + n;
+  document.getElementById('o').textContent = 'notify_' + n;
+  if (window.Notification && Notification.permission === 'granted') new Notification('raven e2e tick ' + n);
+}, 10000);
+</script></body></html>
