@@ -392,6 +392,8 @@ class Core(
                 LastMediaAccessMiddleware(),
                 HistoryMetadataMiddleware(historyMetadataService),
                 ProtectionsDashboardMiddleware(protectionsStorage),
+                // Profiles: keeps kept tabs unsuspended and at high priority; must precede SessionPrioritizationMiddleware
+                org.mozilla.fenix.profiles.KeepAliveMiddleware(),
                 SessionPrioritizationMiddleware(),
                 SaveToPDFMiddleware(context),
                 FxSuggestFactsMiddleware(),

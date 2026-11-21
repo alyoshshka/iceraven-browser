@@ -48,6 +48,10 @@
     <!-- Needed to post notifications on devices with Android 13 and later-->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- Profiles: keep chosen tabs running in the background (ProfileKeepAliveService) -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_REMOTE_MESSAGING" />
+
     <!-- Needed for uploading media files on devices with Android 13 and later. -->
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
 
@@ -777,6 +781,11 @@
                 android:name="android.autofill"
                 android:resource="@xml/autofill_configuration" />
         </service>
+
+        <!-- Profiles: keeps chosen tabs running in the background -->
+        <service android:name=".profiles.ProfileKeepAliveService"
+            android:foregroundServiceType="remoteMessaging"
+            android:exported="false" />
 
         <service android:name=".media.MediaSessionService"
             android:foregroundServiceType="mediaPlayback"

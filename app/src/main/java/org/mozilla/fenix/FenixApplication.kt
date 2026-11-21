@@ -477,6 +477,9 @@ open class FenixApplication : Application(), Provider, ThemeProvider {
 
         components.tabDataCoordinator.initialize()
 
+        // Profiles: keep chosen tabs running in the background
+        org.mozilla.fenix.profiles.ProfileKeepAlive.start(this, components.core.store, applicationScope)
+
         // Profiles: cache container names so the system file picker can label roots (profiles
         // created before names were cached never got one).
         applicationScope.launch(ioDispatcher) {

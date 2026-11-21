@@ -699,6 +699,21 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
                                             dismiss()
                                             if (tabId != null) OpenInProfileDialogFragment.show(fm, tabId)
                                         },
+                                        showKeepAlive =
+                                            browserTab != null && customTab == null &&
+                                                org.mozilla.fenix.profiles.isKeepAliveSupported(browserTab),
+                                        isKeptAlive = browserTab != null &&
+                                            org.mozilla.fenix.profiles.ProfileKeepAlive.isKept(browserTab.id),
+                                        onKeepAliveClick = {
+                                            browserTab?.let { tab ->
+                                                org.mozilla.fenix.profiles.ProfileKeepAlive.setKept(
+                                                    context,
+                                                    tab.id,
+                                                    !org.mozilla.fenix.profiles.ProfileKeepAlive.isKept(tab.id),
+                                                )
+                                            }
+                                            dismiss()
+                                        },
                                         onSaveToCollectionMenuClick = {
                                             menuStore.dispatch(
                                                 MenuAction.Navigate.SaveToCollection(
