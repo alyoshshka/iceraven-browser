@@ -58,6 +58,9 @@ internal fun MoreSettingsSubmenu(
     // Profiles: whether to show the "Open in profile" item.
     showOpenInProfile: Boolean = false,
     onOpenInProfileClick: () -> Unit = {},
+    showKeepAlive: Boolean = false,
+    isKeptAlive: Boolean = false,
+    onKeepAliveClick: () -> Unit = {},
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
         TranslationMenuItem(
@@ -79,6 +82,22 @@ internal fun MoreSettingsSubmenu(
                 label = stringResource(id = R.string.profiles_open_in_profile),
                 beforeIconPainter = painterResource(id = iconsR.drawable.mozac_ic_avatar_circle_24),
                 onClick = onOpenInProfileClick,
+            )
+        }
+        if (showKeepAlive) {
+            // Profiles: keep this tab running in the background (notifications)
+            MenuItem(
+                label = stringResource(
+                    id = if (isKeptAlive) R.string.profiles_keep_alive_menu_stop else R.string.profiles_keep_alive,
+                ),
+                beforeIconPainter = painterResource(
+                    id = if (isKeptAlive) {
+                        iconsR.drawable.mozac_ic_notification_slash_24
+                    } else {
+                        iconsR.drawable.mozac_ic_notification_24
+                    },
+                ),
+                onClick = onKeepAliveClick,
             )
         }
         WebCompatReporterMenuItem(

@@ -62,6 +62,16 @@
     <string name="profiles_search_no_match" translatable="false">No matching profiles</string>
     <string name="profiles_new_profile" translatable="false">New profile</string>
     <string name="profiles_create_and_open" translatable="false">Create and open</string>
+    <string name="profiles_keep_alive" translatable="false">Keep running in background</string>
+    <string name="profiles_keep_alive_description" translatable="false">Stays connected for notifications, e.g. chat. Uses more battery.</string>
+    <string name="profiles_keep_alive_menu_stop" translatable="false">Stop running in background</string>
+    <string name="profiles_keep_alive_channel" translatable="false">Tabs running in background</string>
+    <string name="profiles_keep_alive_notification_title" translatable="false">Keeping tabs connected</string>
+    <plurals name="profiles_keep_alive_notification_text" translatable="false">
+        <item quantity="one">%1$d tab runs in the background for notifications</item>
+        <item quantity="other">%1$d tabs run in the background for notifications</item>
+    </plurals>
+    <string name="profiles_keep_alive_stop" translatable="false">Stop</string>
     <string name="profiles_ask_for_links" translatable="false">Ask which profile for links from other apps</string>
     <string name="profiles_sites_title" translatable="false">Sites that always open here</string>
     <string name="profiles_sites_empty" translatable="false">None yet. Use “Always open this site in this profile” on a page.</string>

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Tiny test server for raven/e2e.sh: serves e2e-page.html (text/html) and /e2e.txt (as an attachment).
+"""Tiny test server for raven/e2e.sh: serves e2e-page.html and e2e-notify.html (text/html) and /e2e.txt (as an attachment).
 Usage: e2e-server.py <port-file>   Binds 0.0.0.0 on a free port and writes the port number to <port-file>."""
 import http.server
 import os
@@ -11,8 +11,9 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 class H(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
         path = self.path.split("?", 1)[0]
-        if path in ("/", "/e2e-page.html"):
-            body = open(os.path.join(HERE, "e2e-page.html"), "rb").read()
+        if path in ("/", "/e2e-page.html", "/e2e-notify.html"):
+            name = "e2e-notify.html" if path == "/e2e-notify.html" else "e2e-page.html"
+            body = open(os.path.join(HERE, name), "rb").read()
             hdr = {"Content-Type": "text/html; charset=utf-8"}
         elif path == "/e2e.txt":
             body = b"raven e2e download\n"
