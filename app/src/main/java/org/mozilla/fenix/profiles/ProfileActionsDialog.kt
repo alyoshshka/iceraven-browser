@@ -51,6 +51,8 @@ import org.mozilla.fenix.theme.FirefoxTheme
  * @param host Host of the tab's page, or null if it has none (no always-open switch then).
  * @param alwaysOpen Whether [host] is set to always open in [profile].
  * @param onAlwaysOpenChanged Invoked when the switch is toggled.
+ * @param keepAlive Whether the tab is kept running in the background.
+ * @param onKeepAliveChanged Invoked when the "Keep running in background" switch is toggled.
  * @param onOpenInAnotherProfile Invoked when "Open in another profile" is tapped.
  * @param onManageProfiles Invoked when "Manage profiles" is tapped.
  * @param onDismiss Invoked when the dialog is closed.
@@ -61,6 +63,8 @@ fun ProfileActionsDialog(
     host: String?,
     alwaysOpen: Boolean,
     onAlwaysOpenChanged: (Boolean) -> Unit,
+    keepAlive: Boolean,
+    onKeepAliveChanged: (Boolean) -> Unit,
     onOpenInAnotherProfile: (() -> Unit)?,
     onManageProfiles: () -> Unit,
     onDismiss: () -> Unit,
@@ -95,6 +99,14 @@ fun ProfileActionsDialog(
                         onClick = onAlwaysOpenChanged,
                     )
                 }
+                SwitchListItem(
+                    label = stringResource(R.string.profiles_keep_alive),
+                    description = stringResource(R.string.profiles_keep_alive_description),
+                    checked = keepAlive,
+                    maxLabelLines = 2,
+                    showSwitchAfter = true,
+                    onClick = onKeepAliveChanged,
+                )
                 IconListItem(
                     label = stringResource(R.string.profiles_manage),
                     beforeIconPainter = painterResource(iconsR.drawable.mozac_ic_settings_24),
@@ -147,6 +159,7 @@ class ProfileActionsDialogFragment : DialogFragment() {
                     var alwaysOpen by remember {
                         mutableStateOf(host != null && storage.ruleFor(host) == profile.contextId)
                     }
+                    var keepAlive by remember { mutableStateOf(ProfileKeepAlive.isKept(tab.id)) }
                     ProfileActionsDialog(
                         profile = profile,
                         host = host,
@@ -156,6 +169,11 @@ class ProfileActionsDialogFragment : DialogFragment() {
                                 if (enabled) storage.setRule(host, profile.contextId) else storage.removeRule(host)
                                 alwaysOpen = enabled
                             }
+                        },
+                        keepAlive = keepAlive,
+                        onKeepAliveChanged = { enabled ->
+                            ProfileKeepAlive.setKept(requireContext(), tab.id, enabled)
+                            keepAlive = enabled
                         },
                         onOpenInAnotherProfile = if (isOpenInProfileSupported(tab)) {
                             {
