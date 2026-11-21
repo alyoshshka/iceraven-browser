@@ -51,6 +51,8 @@ import org.mozilla.fenix.theme.FirefoxTheme
  * @param host Host of the tab's page, or null if it has none (no always-open switch then).
  * @param alwaysOpen Whether [host] is set to always open in [profile].
  * @param onAlwaysOpenChanged Invoked when the switch is toggled.
+ * @param proxy The profile's proxy, if it has one.
+ * @param proxyReachable Whether the proxy accepts connections (null while checking).
  * @param keepAlive Whether the tab is kept running in the background.
  * @param onKeepAliveChanged Invoked when the "Keep running in background" switch is toggled.
  * @param onOpenInAnotherProfile Invoked when "Open in another profile" is tapped.
@@ -68,6 +70,8 @@ fun ProfileActionsDialog(
     onOpenInAnotherProfile: (() -> Unit)?,
     onManageProfiles: () -> Unit,
     onDismiss: () -> Unit,
+    proxy: ProfileProxySettings = ProfileProxySettings(),
+    proxyReachable: Boolean? = null,
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -83,6 +87,26 @@ fun ProfileActionsDialog(
         },
         text = {
             Column {
+                if (proxy.isActive) {
+                    val status = stringResource(
+                        when (proxyReachable) {
+                            true -> R.string.profiles_proxy_status_reachable
+                            false -> R.string.profiles_proxy_status_unreachable
+                            null -> R.string.profiles_proxy_checking
+                        },
+                    )
+                    Text(
+                        text = stringResource(
+                            R.string.profiles_proxy_status,
+                            if (proxy.type == ProxyType.SOCKS5) "SOCKS5" else "HTTP",
+                            proxy.host,
+                            proxy.port,
+                            status,
+                        ),
+                        style = FirefoxTheme.typography.body2,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    )
+                }
                 if (onOpenInAnotherProfile != null) {
                     IconListItem(
                         label = stringResource(R.string.profiles_open_in_another_profile),
@@ -160,7 +184,14 @@ class ProfileActionsDialogFragment : DialogFragment() {
                         mutableStateOf(host != null && storage.ruleFor(host) == profile.contextId)
                     }
                     var keepAlive by remember { mutableStateOf(ProfileKeepAlive.isKept(tab.id)) }
+                    val proxy = remember { ProfileProxy.get(profile.contextId) }
+                    var proxyReachable by remember { mutableStateOf<Boolean?>(null) }
+                    LaunchedEffect(proxy) {
+                        if (proxy.isActive) proxyReachable = ProfileProxy.checkReachable(proxy.host, proxy.port)
+                    }
                     ProfileActionsDialog(
+                        proxy = proxy,
+                        proxyReachable = proxyReachable,
                         profile = profile,
                         host = host,
                         alwaysOpen = alwaysOpen,

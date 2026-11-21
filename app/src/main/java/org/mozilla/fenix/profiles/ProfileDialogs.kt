@@ -28,6 +28,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -47,6 +48,7 @@ import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.tooling.preview.PreviewLightDark
 import androidx.compose.ui.unit.dp
@@ -55,7 +57,9 @@ import mozilla.components.compose.base.button.TextButton
 import mozilla.components.feature.prompts.R as promptsR
 import mozilla.components.ui.icons.R as iconsR
 import org.mozilla.fenix.R
+import kotlinx.coroutines.launch
 import org.mozilla.fenix.compose.list.IconListItem
+import org.mozilla.fenix.compose.list.RadioButtonListItem
 import org.mozilla.fenix.compose.list.SwitchListItem
 import org.mozilla.fenix.theme.FirefoxTheme
 
@@ -72,8 +76,9 @@ private const val ICONS_PER_ROW = 5
  * @param sites Hosts that always open in the profile being edited.
  * @param limited Whether the profile being edited is limited to its designated sites.
  * @param onDismiss Invoked when the dialog is cancelled.
- * @param onSave Invoked with the trimmed, non-empty name, the chosen color and icon, the limit switch and the sites
- * the user removed from the list.
+ * @param proxy The proxy of the profile being edited.
+ * @param onSave Invoked with the trimmed, non-empty name, the chosen color and icon, the limit switch, the sites
+ * the user removed from the list and the chosen proxy.
  */
 @Composable
 fun ProfileEditDialog(
@@ -86,9 +91,11 @@ fun ProfileEditDialog(
         icon: ContainerState.Icon,
         limited: Boolean,
         removedSites: Set<String>,
+        proxy: ProfileProxySettings,
     ) -> Unit,
     sites: List<String> = emptyList(),
     limited: Boolean = false,
+    proxy: ProfileProxySettings = ProfileProxySettings(),
 ) {
     // TextFieldValue so the cursor starts at the end of the prefilled name.
     var nameValue by remember {
@@ -101,6 +108,10 @@ fun ProfileEditDialog(
     var limitSites by remember { mutableStateOf(limited) }
     var removedSites by remember { mutableStateOf(emptySet<String>()) }
     var nameError by remember { mutableStateOf(false) }
+    var proxyType by remember { mutableStateOf(proxy.type) }
+    var proxyHost by remember { mutableStateOf(proxy.host) }
+    var proxyPort by remember { mutableStateOf(if (proxy.port > 0) proxy.port.toString() else "") }
+    var proxyPortError by remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
 
     LaunchedEffect(Unit) {
@@ -173,6 +184,19 @@ fun ProfileEditDialog(
 
                 ProfileIconPicker(selected = icon, color = color.toComposeColor(), onSelected = { icon = it })
 
+                ProfileProxySection(
+                    type = proxyType,
+                    host = proxyHost,
+                    port = proxyPort,
+                    portError = proxyPortError,
+                    onTypeChange = { proxyType = it },
+                    onHostChange = { proxyHost = it },
+                    onPortChange = {
+                        proxyPort = it.filter(Char::isDigit).take(5)
+                        proxyPortError = false
+                    },
+                )
+
                 if (existing != null) {
                     ProfileSitesSection(
                         sites = sites.filter { it !in removedSites },
@@ -188,7 +212,22 @@ fun ProfileEditDialog(
                 text = stringResource(promptsR.string.mozac_feature_prompt_save_confirmation),
                 onClick = {
                     val trimmed = name.trim()
-                    if (trimmed.isEmpty()) nameError = true else onSave(trimmed, color, icon, limitSites, removedSites)
+                    val portNumber = proxyPort.toIntOrNull()
+                    val portValid = portNumber != null && portNumber in 1..65535
+                    if (trimmed.isEmpty()) nameError = true
+                    if (proxyType != ProxyType.NONE && !portValid) proxyPortError = true
+                    if (trimmed.isNotEmpty() && !proxyPortError) {
+                        val chosen = if (proxyType == ProxyType.NONE) {
+                            ProfileProxySettings()
+                        } else {
+                            ProfileProxySettings(
+                                proxyType,
+                                proxyHost.trim().ifEmpty { ProfileProxy.DEFAULT_HOST },
+                                portNumber ?: 0,
+                            )
+                        }
+                        onSave(trimmed, color, icon, limitSites, removedSites, chosen)
+                    }
                 },
             )
         },
@@ -260,6 +299,124 @@ internal fun ProfileIconPicker(
                     }
                 }
             }
+        }
+    }
+}
+
+/** Proxy choice (none, SOCKS5, HTTP) with host, port, the fail-closed note and a reachability check. */
+@Composable
+private fun ProfileProxySection(
+    type: ProxyType,
+    host: String,
+    port: String,
+    portError: Boolean,
+    onTypeChange: (ProxyType) -> Unit,
+    onHostChange: (String) -> Unit,
+    onPortChange: (String) -> Unit,
+) {
+    val scope = rememberCoroutineScope()
+    var checkResult by remember { mutableStateOf<Boolean?>(null) }
+
+    Spacer(modifier = Modifier.height(16.dp))
+
+    Text(
+        text = stringResource(R.string.profiles_proxy_title),
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        style = FirefoxTheme.typography.caption,
+    )
+
+    listOf(
+        ProxyType.NONE to R.string.profiles_proxy_none,
+        ProxyType.SOCKS5 to R.string.profiles_proxy_socks5,
+        ProxyType.HTTP to R.string.profiles_proxy_http,
+    ).forEach { (option, label) ->
+        RadioButtonListItem(
+            label = stringResource(label),
+            selected = type == option,
+            onClick = {
+                onTypeChange(option)
+                checkResult = null
+            },
+        )
+    }
+
+    if (type == ProxyType.NONE) return
+
+    if (type == ProxyType.HTTP) {
+        Text(
+            text = stringResource(R.string.profiles_proxy_http_warning),
+            color = MaterialTheme.colorScheme.error,
+            style = FirefoxTheme.typography.body2,
+            modifier = Modifier.padding(vertical = 4.dp),
+        )
+    }
+
+    OutlinedTextField(
+        value = host,
+        onValueChange = {
+            onHostChange(it)
+            checkResult = null
+        },
+        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+        textStyle = FirefoxTheme.typography.body1,
+        label = {
+            Text(text = stringResource(R.string.profiles_proxy_host_label), style = FirefoxTheme.typography.caption)
+        },
+        singleLine = true,
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+    )
+
+    OutlinedTextField(
+        value = port,
+        onValueChange = {
+            onPortChange(it)
+            checkResult = null
+        },
+        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+        textStyle = FirefoxTheme.typography.body1,
+        label = {
+            Text(text = stringResource(R.string.profiles_proxy_port_label), style = FirefoxTheme.typography.caption)
+        },
+        isError = portError,
+        supportingText = if (portError) {
+            { Text(text = stringResource(R.string.profiles_proxy_port_error), style = FirefoxTheme.typography.caption) }
+        } else {
+            null
+        },
+        singleLine = true,
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+    )
+
+    Text(
+        text = stringResource(R.string.profiles_proxy_fail_closed),
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        style = FirefoxTheme.typography.body2,
+        modifier = Modifier.padding(top = 8.dp),
+    )
+
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        TextButton(
+            text = stringResource(R.string.profiles_proxy_check),
+            onClick = {
+                val number = port.toIntOrNull()
+                if (number == null || number !in 1..65535) {
+                    checkResult = false
+                } else {
+                    val target = host.trim().ifEmpty { ProfileProxy.DEFAULT_HOST }
+                    scope.launch { checkResult = ProfileProxy.checkReachable(target, number) }
+                }
+            },
+        )
+        checkResult?.let { reachable ->
+            Text(
+                text = stringResource(
+                    if (reachable) R.string.profiles_proxy_reachable else R.string.profiles_proxy_unreachable,
+                ),
+                style = FirefoxTheme.typography.body2,
+            )
         }
     }
 }
@@ -393,7 +550,7 @@ private fun ProfileEditDialogPreview() {
                 existing = null,
                 defaultColor = ContainerState.Color.BLUE,
                 onDismiss = {},
-                onSave = { _, _, _, _, _ -> },
+                onSave = { _, _, _, _, _, _ -> },
             )
         }
     }

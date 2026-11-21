@@ -1,0 +1,26 @@
+{
+  "manifest_version": 2,
+  "name": "Raven per-profile proxy",
+  "description": "Routes the tabs of a Raven profile through a local proxy and fails closed when it is unreachable",
+  "version": "1.0.0",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "raven-proxy@ravenprofiles"
+    }
+  },
+  "experiment_apis": {
+    "ravenProxy": {
+      "schema": "experimentalAPIs/ravenProxy.json",
+      "parent": {
+        "scopes": ["addon_parent"],
+        "script": "experimentalAPIs/ravenProxy.js",
+        "events": ["startup"],
+        "paths": [["ravenProxy"]]
+      }
+    }
+  },
+  "permissions": ["nativeMessaging", "geckoViewAddons"],
+  "background": {
+    "scripts": ["background.js"]
+  }
+}
