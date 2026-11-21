@@ -4,7 +4,7 @@
 #   raven/e2e.sh <apk> <adb-serial>        (serial may also come from $ANDROID_SERIAL / $ADB_SERIAL)
 #
 # Checks: install+launch (incl. first-run onboarding), create profile "Work", cookie isolation, app-only downloads,
-# external-link chooser ("Open link in": Always rule, site-rule removal, setting off), profile UX (toolbar chip,
+# external-link chooser ("Open link in": one-tap rows, Always rule, site-rule removal, setting off), profile UX (toolbar chip,
 # chip dialog "Always open <host> in this profile", "New tab in profile…" from the tab counter, tab tray profile filter),
 # no crash in logcat.
 # Web content comes from a tiny local server (raven/e2e-server.py) that this script starts on the machine running adb and
@@ -47,7 +47,9 @@ mkdir -p "$OUT"; OUT=$(cd "$OUT" && pwd)
 UI="$OUT/ui.xml"
 FAILS=0; STEP=0
 
-A() { adb -s "$SERIAL" "$@"; }
+# Every adb call is time-boxed: adb waits forever for a device that went away (e.g. a crashed CI emulator), which
+# would hang the run instead of failing it and letting the workflow retry.
+A() { timeout -k 5 "${RAVEN_E2E_ADB_TIMEOUT:-300}" adb -s "$SERIAL" "$@"; }
 sh_() { A shell "$@"; }
 log() { echo "[e2e] $*"; }
 
@@ -503,15 +505,16 @@ check_link_chooser() {
   local name v
   local host=$HOST
 
-  name='external link shows "Open link in" dialog (Default, Work, Always checkbox)'
+  name='external link shows "Open link in" dialog (link, Always checkbox, Default, Work, New profile)'
   view_external "$(read_url)"
   if ! wait_for_text '^Open link in$' 20; then fail "$name" "dialog not shown"; return 1; fi
-  if ui_query has '^Default$' && ui_query has '^Work$' && ui_query has "^Always open $host in this profile$"; then
+  if ui_query has '^Default$' && ui_query has '^Work$' && ui_query has '^New profile$' \
+     && ui_query has "^Always open $host in the profile I choose$" && ui_query has 'e2e-page\.html'; then
     shot link-chooser; pass "$name"
-  else fail "$name" "dialog is missing Default / Work / Always rows"; return 1; fi
+  else fail "$name" "dialog is missing the link / Default / Work / New profile / Always rows"; return 1; fi
 
-  name='chooser: Work + Always + Open loads the page in a Work tab'
-  tap_text '^Work$' 5 && tap_text "^Always open $host in this profile$" 5 && tap_text '^Open$' 5 \
+  name='chooser: Always + one tap on Work loads the page in a Work tab'
+  tap_text "^Always open $host in the profile I choose$" 5 && tap_text '^Work$' 5 \
     || { fail "$name" "could not operate the dialog"; return 1; }
   sleep 4
   v=$(read_page_value 40) || { fail "$name" "page not readable"; return 1; }
@@ -537,6 +540,20 @@ check_link_chooser() {
   open_work_editor || { fail "$name" "could not reopen the Work profile editor"; return 1; }
   if wait_gone "^$host\$" 10; then pass "$name"; else fail "$name" "rule still listed after removal"; tap_text_scroll '^Cancel$'; return 1; fi
   tap_text_scroll '^Cancel$' || back
+
+  name='chooser: "New profile" creates "Bank" inline and opens the link in it'
+  view_external "$(read_url)"
+  if ! wait_for_text '^Open link in$' 20; then fail "$name" "dialog not shown"; return 1; fi
+  tap_text '^New profile$' 5 && wait_for_text '^Create and open$' 10 \
+    || { fail "$name" "no inline form"; return 1; }
+  sh_ input text Bank; sleep 1
+  shot new-profile-form
+  sh_ input keyevent 66  # keyboard Done = Create and open (the button can sit under the keyboard)
+  sleep 4
+  v=$(read_page_value 40) || { fail "$name" "page not readable"; return 1; }
+  if [ "$v" = none ] && chip_is Bank; then pass "$name"; else fail "$name" "expected who=none with the Bank chip, saw $v"; fi
+  open_settings && tap_text_scroll '^Profiles$' && wait_for_text '^Add profile$' 15 \
+    || { fail "$name" "could not return to Settings > Profiles"; return 1; }
 
   name='"Ask which profile" switch off: link opens in Default without a dialog'
   dump

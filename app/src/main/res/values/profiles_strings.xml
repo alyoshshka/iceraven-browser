@@ -56,8 +56,12 @@
     <string name="profiles_shortcut_label" translatable="false">%1$s (%2$s)</string>
     <!-- Links from other apps -->
     <string name="profiles_open_link_in" translatable="false">Open link in</string>
-    <string name="profiles_open_link_confirm" translatable="false">Open</string>
     <string name="profiles_always_open_in_profile" translatable="false">Always open %1$s in this profile</string>
+    <string name="profiles_always_open_in_chosen" translatable="false">Always open %1$s in the profile I choose</string>
+    <string name="profiles_search" translatable="false">Search profiles</string>
+    <string name="profiles_search_no_match" translatable="false">No matching profiles</string>
+    <string name="profiles_new_profile" translatable="false">New profile</string>
+    <string name="profiles_create_and_open" translatable="false">Create and open</string>
     <string name="profiles_ask_for_links" translatable="false">Ask which profile for links from other apps</string>
     <string name="profiles_sites_title" translatable="false">Sites that always open here</string>
     <string name="profiles_sites_empty" translatable="false">None yet. Use “Always open this site in this profile” on a page.</string>

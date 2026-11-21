@@ -202,7 +202,7 @@ fun ProfileEditDialog(
 }
 
 @Composable
-private fun ProfileColorPicker(
+internal fun ProfileColorPicker(
     selected: ContainerState.Color,
     onSelected: (ContainerState.Color) -> Unit,
 ) {
@@ -223,7 +223,7 @@ private fun ProfileColorPicker(
 }
 
 @Composable
-private fun ProfileIconPicker(
+internal fun ProfileIconPicker(
     selected: ContainerState.Icon,
     color: Color,
     onSelected: (ContainerState.Icon) -> Unit,

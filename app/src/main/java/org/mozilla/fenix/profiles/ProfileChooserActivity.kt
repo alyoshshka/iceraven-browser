@@ -13,15 +13,33 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.style.TextOverflow
+import mozilla.components.browser.state.action.ContainerAction
+import mozilla.components.compose.base.button.FilledButton
+import mozilla.components.ui.icons.R as iconsR
+import org.mozilla.fenix.compose.list.IconListItem
+import java.util.UUID
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -67,9 +85,23 @@ class ProfileChooserActivity : ComponentActivity() {
                     containers.orEmpty().values.sortedBy { it.name.lowercase() }
                 }
                 ProfileChooserDialog(
+                    url = url,
                     host = host,
                     profiles = profiles,
+                    defaultColor = firstUnusedColor(profiles),
                     onChosen = { contextId, always ->
+                        if (always) storage.setRule(host, contextId)
+                        openLink(url, contextId)
+                        finish()
+                    },
+                    onCreate = { name, color, icon, always ->
+                        val contextId = UUID.randomUUID().toString()
+                        storage.setName(contextId, name)
+                        components.core.store.dispatch(
+                            ContainerAction.AddContainerAction(
+                                ContainerState(contextId = contextId, name = name, color = color, icon = icon),
+                            ),
+                        )
                         if (always) storage.setRule(host, contextId)
                         openLink(url, contextId)
                         finish()
@@ -101,70 +133,135 @@ class ProfileChooserActivity : ComponentActivity() {
 }
 
 /**
- * "Open link in" dialog: Default and each profile as radio rows, an "Always open <host> in this profile" checkbox and
- * Cancel / Open buttons.
+ * "Open link in" dialog, modelled on the ask-for-container extension: the link at the top, an "Always open <host> in
+ * the profile I choose" checkbox, one-tap rows for Default and each profile (icon in the profile color), a search field
+ * once there are many profiles, and "New profile" to create one inline and open the link in it.
  *
- * @param host Host of the link, used in the checkbox label.
+ * @param url The link being opened, shown under the title.
+ * @param host Host of the link, used in the checkbox label and saved as the rule.
  * @param profiles The profiles to list, sorted by name.
+ * @param defaultColor Color preselected for a new profile.
  * @param onChosen Invoked with the chosen contextId (null for Default) and whether to remember it for [host].
+ * @param onCreate Invoked with a new profile's name, color and icon, and whether to remember it for [host].
  * @param onDismiss Invoked when the dialog is cancelled.
  */
 @Composable
 fun ProfileChooserDialog(
+    url: String,
     host: String,
     profiles: List<ContainerState>,
+    defaultColor: ContainerState.Color,
     onChosen: (contextId: String?, always: Boolean) -> Unit,
+    onCreate: (name: String, color: ContainerState.Color, icon: ContainerState.Icon, always: Boolean) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    var selected by remember { mutableStateOf<String?>(null) }
     var always by remember { mutableStateOf(false) }
+    var query by remember { mutableStateOf("") }
+    var creating by remember { mutableStateOf(false) }
+    val defaultName = stringResource(R.string.profiles_default_name)
+    val needle = query.trim()
+    val showDefault = needle.isEmpty() || defaultName.contains(needle, ignoreCase = true)
+    val shown = if (needle.isEmpty()) profiles else profiles.filter { it.name.contains(needle, ignoreCase = true) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
-            Text(
-                text = stringResource(R.string.profiles_open_link_in),
-                style = FirefoxTheme.typography.headline5,
-            )
+            Column {
+                Text(
+                    text = stringResource(R.string.profiles_open_link_in),
+                    style = FirefoxTheme.typography.headline5,
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = url,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = FirefoxTheme.typography.caption,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         },
         text = {
             Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                ChooserRow(
-                    label = stringResource(R.string.profiles_default_name),
-                    dotColor = null,
-                    selected = selected == null,
-                    onClick = { selected = null },
-                )
-                profiles.forEach { profile ->
-                    ChooserRow(
-                        label = profile.name,
-                        dotColor = profile.color,
-                        selected = selected == profile.contextId,
-                        onClick = { selected = profile.contextId },
-                    )
-                }
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable(role = Role.Checkbox) { always = !always }
-                        .padding(top = 8.dp),
+                        .clickable(role = Role.Checkbox) { always = !always },
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Checkbox(checked = always, onCheckedChange = null, modifier = Modifier.padding(12.dp))
                     Text(
-                        text = stringResource(R.string.profiles_always_open_in_profile, host),
+                        text = stringResource(R.string.profiles_always_open_in_chosen, host),
                         color = MaterialTheme.colorScheme.onSurface,
                         style = FirefoxTheme.typography.body2,
                     )
                 }
+
+                if (profiles.size >= SEARCH_THRESHOLD) {
+                    OutlinedTextField(
+                        value = query,
+                        onValueChange = { query = it },
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                        textStyle = FirefoxTheme.typography.body1,
+                        placeholder = {
+                            Text(
+                                text = stringResource(R.string.profiles_search),
+                                style = FirefoxTheme.typography.body1,
+                            )
+                        },
+                        leadingIcon = {
+                            Icon(
+                                painter = painterResource(iconsR.drawable.mozac_ic_search_24),
+                                contentDescription = null,
+                            )
+                        },
+                        singleLine = true,
+                    )
+                }
+
+                if (showDefault) {
+                    ChooserRow(
+                        label = defaultName,
+                        painter = painterResource(iconsR.drawable.mozac_ic_globe_24),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        onClick = { onChosen(null, always) },
+                    )
+                }
+                shown.forEach { profile ->
+                    ChooserRow(
+                        label = profile.name,
+                        painter = painterResource(profile.icon.drawableRes()),
+                        tint = profile.color.toComposeColor(),
+                        onClick = { onChosen(profile.contextId, always) },
+                    )
+                }
+                if (!showDefault && shown.isEmpty()) {
+                    Text(
+                        text = stringResource(R.string.profiles_search_no_match),
+                        modifier = Modifier.padding(16.dp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = FirefoxTheme.typography.body2,
+                    )
+                }
+
+                if (creating) {
+                    NewProfileForm(
+                        initialName = needle.takeIf { !showDefault && shown.isEmpty() }.orEmpty(),
+                        defaultColor = defaultColor,
+                        onCreate = { name, color, icon -> onCreate(name, color, icon, always) },
+                    )
+                } else {
+                    ChooserRow(
+                        label = stringResource(R.string.profiles_new_profile),
+                        painter = painterResource(iconsR.drawable.mozac_ic_plus_24),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        showChevron = false,
+                        onClick = { creating = true },
+                    )
+                }
             }
         },
-        confirmButton = {
-            TextButton(
-                text = stringResource(R.string.profiles_open_link_confirm),
-                onClick = { onChosen(selected, always) },
-            )
-        },
+        confirmButton = {},
         dismissButton = {
             TextButton(
                 text = stringResource(promptsR.string.mozac_feature_prompts_cancel),
@@ -177,25 +274,87 @@ fun ProfileChooserDialog(
 @Composable
 private fun ChooserRow(
     label: String,
-    dotColor: ContainerState.Color?,
-    selected: Boolean,
+    painter: Painter,
+    tint: Color,
     onClick: () -> Unit,
+    showChevron: Boolean = true,
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(role = Role.RadioButton, onClick = onClick),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        RadioButton(selected = selected, onClick = null, modifier = Modifier.padding(12.dp))
-        if (dotColor != null) {
-            ProfileDot(color = dotColor.toComposeColor())
-            Spacer(modifier = Modifier.width(8.dp))
-        }
+    IconListItem(
+        label = label,
+        onClick = onClick,
+        beforeIconPainter = painter,
+        beforeIconTint = tint,
+        afterIconPainter = if (showChevron) painterResource(iconsR.drawable.mozac_ic_chevron_right_24) else null,
+        contentPaddingListItem = PaddingValues(horizontal = 12.dp, vertical = 12.dp),
+    )
+}
+
+/** Inline "New profile" form of the chooser: name, color, icon and "Create and open". */
+@Composable
+private fun NewProfileForm(
+    initialName: String,
+    defaultColor: ContainerState.Color,
+    onCreate: (name: String, color: ContainerState.Color, icon: ContainerState.Icon) -> Unit,
+) {
+    var name by remember { mutableStateOf(initialName) }
+    var color by remember { mutableStateOf(defaultColor) }
+    var icon by remember { mutableStateOf(ContainerState.Icon.CIRCLE) }
+    var nameError by remember { mutableStateOf(false) }
+    val focusRequester = remember { FocusRequester() }
+    LaunchedEffect(Unit) { focusRequester.requestFocus() }
+    fun submit() {
+        val trimmed = name.trim()
+        if (trimmed.isEmpty()) nameError = true else onCreate(trimmed, color, icon)
+    }
+
+    Column(modifier = Modifier.padding(top = 8.dp)) {
+        OutlinedTextField(
+            value = name,
+            onValueChange = {
+                name = it
+                nameError = false
+            },
+            modifier = Modifier.fillMaxWidth().focusRequester(focusRequester),
+            textStyle = FirefoxTheme.typography.body1,
+            label = { Text(text = stringResource(R.string.profiles_name_label), style = FirefoxTheme.typography.caption) },
+            isError = nameError,
+            supportingText = if (nameError) {
+                { Text(text = stringResource(R.string.profiles_name_error), style = FirefoxTheme.typography.caption) }
+            } else {
+                null
+            },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(
+                capitalization = KeyboardCapitalization.Sentences,
+                imeAction = ImeAction.Done,
+            ),
+            // Done on the keyboard creates the profile: the button can sit under the keyboard on small screens.
+            keyboardActions = KeyboardActions(onDone = { submit() }),
+        )
+        Spacer(modifier = Modifier.height(16.dp))
         Text(
-            text = label,
-            color = MaterialTheme.colorScheme.onSurface,
-            style = FirefoxTheme.typography.subtitle1,
+            text = stringResource(R.string.profiles_color_label),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = FirefoxTheme.typography.caption,
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        ProfileColorPicker(selected = color, onSelected = { color = it })
+        Spacer(modifier = Modifier.height(16.dp))
+        Text(
+            text = stringResource(R.string.profiles_icon_label),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = FirefoxTheme.typography.caption,
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        ProfileIconPicker(selected = icon, color = color.toComposeColor(), onSelected = { icon = it })
+        Spacer(modifier = Modifier.height(16.dp))
+        FilledButton(
+            text = stringResource(R.string.profiles_create_and_open),
+            modifier = Modifier.fillMaxWidth(),
+            onClick = { submit() },
         )
     }
 }
+
+/** Number of profiles from which the chooser shows a search field. */
+private const val SEARCH_THRESHOLD = 5
