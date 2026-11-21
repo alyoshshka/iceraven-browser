@@ -1,5 +1,5 @@
 diff --git a/components/compose/browser-toolbar/src/main/java/mozilla/components/compose/browser/toolbar/ActionContainer.kt b/components/compose/browser-toolbar/src/main/java/mozilla/components/compose/browser/toolbar/ActionContainer.kt
-index 81c6901c..7db5a071 100644
+index 81c6901c..41bde176 100644
 --- a/components/compose/browser-toolbar/src/main/java/mozilla/components/compose/browser/toolbar/ActionContainer.kt
 +++ b/components/compose/browser-toolbar/src/main/java/mozilla/components/compose/browser/toolbar/ActionContainer.kt
 @@ -19,6 +19,7 @@ import androidx.compose.ui.Modifier
@@ -10,7 +10,21 @@ index 81c6901c..7db5a071 100644
  import androidx.compose.ui.tooling.preview.PreviewLightDark
  import mozilla.components.compose.base.theme.AcornTheme
  import mozilla.components.compose.browser.toolbar.concept.Action
-@@ -104,6 +105,8 @@ private fun ActionButtonItem(
+@@ -94,9 +95,11 @@ private fun ActionButtonItem(
+     action: ActionButton,
+     onInteraction: (BrowserToolbarEvent) -> Unit,
+ ) {
+-    action.iconDrawable()?.let {
++    // An action with a label does not need an icon (drawable null): the label alone is drawn.
++    val drawable = action.iconDrawable()
++    if (drawable != null || action.label != null) {
+         ActionButtonComposable(
+-            icon = it,
++            icon = drawable,
+             contentDescription = action.contentDescription,
+             state = action.state,
+             onClick = action.onClick,
+@@ -104,6 +107,8 @@ private fun ActionButtonItem(
              onLongClick = action.onLongClick,
              onInteraction = { event -> onInteraction(event) },
              testTag = action.testTag,
@@ -42,7 +56,7 @@ index 5f15b33b..3416df24 100644
  
          /** An enum class defining the current state of the [ActionButton]. */
 diff --git a/components/compose/browser-toolbar/src/main/java/mozilla/components/compose/browser/toolbar/ui/ActionButton.kt b/components/compose/browser-toolbar/src/main/java/mozilla/components/compose/browser/toolbar/ui/ActionButton.kt
-index 04d9e0fc..c8d01299 100644
+index 04d9e0fc..bf52437e 100644
 --- a/components/compose/browser-toolbar/src/main/java/mozilla/components/compose/browser/toolbar/ui/ActionButton.kt
 +++ b/components/compose/browser-toolbar/src/main/java/mozilla/components/compose/browser/toolbar/ui/ActionButton.kt
 @@ -7,18 +7,23 @@ package mozilla.components.compose.browser.toolbar.ui
@@ -69,7 +83,16 @@ index 04d9e0fc..c8d01299 100644
  import com.google.accompanist.drawablepainter.rememberDrawablePainter
  import mozilla.components.compose.base.badge.BadgedIcon
  import mozilla.components.compose.base.button.IconButton
-@@ -47,6 +52,8 @@ import mozilla.components.ui.icons.R as iconsR
+@@ -39,7 +44,7 @@ import mozilla.components.ui.icons.R as iconsR
+ /**
+  * A clickable icon used to represent an action that can be added to the toolbar.
+  *
+- * @param icon A [Drawable] to use as icon for this button.
++ * @param icon A [Drawable] to use as icon for this button, null to show only the [label].
+  * @param contentDescription A [String] to use as content description for this button.
+  * @param state The current [State] of the action button.
+  * @param highlighted Whether or not to highlight this button.
+@@ -47,11 +52,13 @@ import mozilla.components.ui.icons.R as iconsR
   * @param onLongClick Optional [BrowserToolbarInteraction] describing how to handle this button being long clicked.
   * @param onInteraction Callback for handling [BrowserToolbarEvent]s on user interactions.
   * @param testTag Optional test tag for this button.
@@ -78,6 +101,12 @@ index 04d9e0fc..c8d01299 100644
   */
  @Composable
  @Suppress("LongMethod", "CyclomaticComplexMethod", "CognitiveComplexMethod")
+ internal fun ActionButton(
+-    icon: Drawable,
++    icon: Drawable?,
+     contentDescription: String,
+     state: State = State.DEFAULT,
+     highlighted: Boolean = false,
 @@ -59,16 +66,19 @@ internal fun ActionButton(
      onLongClick: BrowserToolbarInteraction? = null,
      onInteraction: (BrowserToolbarEvent) -> Unit,
@@ -119,8 +148,12 @@ index 04d9e0fc..c8d01299 100644
  
                  ActionButtonMenu(
                      currentMenuState = currentMenuState,
-@@ -167,12 +177,34 @@ private fun ActionButtonIcon(
-     icon: Drawable,
+@@ -164,15 +174,49 @@ internal fun ActionButton(
+ 
+ @Composable
+ private fun ActionButtonIcon(
+-    icon: Drawable,
++    icon: Drawable?,
      tint: Color,
      isHighlighted: Boolean,
 +    label: String? = null,
@@ -130,7 +163,19 @@ index 04d9e0fc..c8d01299 100644
 -        isHighlighted = isHighlighted,
 -        tint = tint,
 -    )
-+    if (label == null) {
++    if (icon == null) {
++        // Label only (no icon).
++        label?.let {
++            Text(
++                text = it,
++                color = tint,
++                style = MaterialTheme.typography.labelLarge,
++                maxLines = 1,
++                overflow = TextOverflow.Ellipsis,
++                modifier = Modifier.padding(horizontal = 6.dp),
++            )
++        }
++    } else if (label == null) {
 +        BadgedIcon(
 +            painter = rememberDrawablePainter(icon),
 +            isHighlighted = isHighlighted,

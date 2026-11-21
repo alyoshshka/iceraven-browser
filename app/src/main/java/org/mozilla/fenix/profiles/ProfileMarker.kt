@@ -11,11 +11,20 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.tooling.preview.PreviewLightDark
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -60,18 +69,112 @@ fun ProfileIcon(
     )
 }
 
-/** Profiles: the small profile icon shown on tab cards, the tab strip and download rows (a dot if the icon is unknown). */
+/**
+ * Profiles: draws [emoji] in a square of [size], as a replacement of the profile icon. Decorative unless
+ * [contentDescription] is set.
+ */
+@Composable
+fun ProfileEmoji(
+    emoji: String,
+    modifier: Modifier = Modifier,
+    size: Dp = ProfileIconSize,
+    contentDescription: String? = null,
+) {
+    val fontSize = with(LocalDensity.current) { (size * EMOJI_FRACTION).toSp() }
+    Box(
+        modifier = modifier
+            .size(size)
+            .then(
+                if (contentDescription != null) {
+                    Modifier.semantics { this.contentDescription = contentDescription }
+                } else {
+                    Modifier.clearAndSetSemantics {}
+                },
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = emoji,
+            fontSize = fontSize,
+            lineHeight = fontSize,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            softWrap = false,
+        )
+    }
+}
+
+private const val EMOJI_FRACTION = 0.8f
+
+/** [name] with [emoji] in front, for menus that can only show an icon resource (the emoji can't be drawn there). */
+fun withEmoji(emoji: String?, name: String): String = if (emoji == null) name else "$emoji $name"
+
+/** The color to draw [container]: its custom color, else the one of its container color. */
+@Composable
+fun profileColor(container: ContainerState): Color {
+    val looks by ProfileAppearance.looks.collectAsState()
+    return looks[container.contextId]?.color?.let { Color(it) } ?: container.color.toComposeColor()
+}
+
+/**
+ * Profiles: the one place that draws a profile's mark: its emoji if it has one, else its icon tinted with its color
+ * (custom color first). [icon] null draws a dot instead; [color] is the fallback when the profile has no custom color.
+ * [contextId] null (or unknown) draws [icon] in [color] as given.
+ */
+@Composable
+fun ProfileBadge(
+    contextId: String?,
+    icon: ContainerState.Icon?,
+    color: Color,
+    modifier: Modifier = Modifier,
+    size: Dp = ProfileIconSize,
+    contentDescription: String? = null,
+) {
+    val looks by ProfileAppearance.looks.collectAsState()
+    val look = contextId?.let { looks[it] }
+    val emoji = look?.emoji
+    val tint = look?.color?.let { Color(it) } ?: color
+    when {
+        emoji != null -> ProfileEmoji(emoji, modifier, size, contentDescription)
+        icon == null -> ProfileDot(color = tint, modifier = modifier)
+        else -> ProfileIcon(icon, tint, modifier, size, contentDescription)
+    }
+}
+
+/** Profiles: [ProfileBadge] of [container]. */
+@Composable
+fun ProfileBadge(
+    container: ContainerState,
+    modifier: Modifier = Modifier,
+    size: Dp = ProfileIconSize,
+    contentDescription: String? = null,
+) = ProfileBadge(
+    contextId = container.contextId,
+    icon = container.icon,
+    color = container.color.toComposeColor(),
+    modifier = modifier,
+    size = size,
+    contentDescription = contentDescription,
+)
+
+/**
+ * Profiles: the small profile mark shown on tab cards, the tab strip and download rows (a dot if the icon is
+ * unknown). [profileId] lets a custom color or emoji of that profile take over.
+ */
 @Composable
 fun ProfileTabIcon(
     icon: ContainerState.Icon?,
     color: Color,
     modifier: Modifier = Modifier,
+    profileId: String? = null,
 ) {
-    if (icon == null) {
-        ProfileDot(color = color, modifier = modifier)
-    } else {
-        ProfileIcon(icon = icon, color = color, modifier = modifier, size = ProfileTabIconSize)
-    }
+    ProfileBadge(
+        contextId = profileId,
+        icon = icon,
+        color = color,
+        modifier = modifier,
+        size = ProfileTabIconSize,
+    )
 }
 
 /** Size of [ProfileTabIcon]. */
@@ -160,14 +263,42 @@ fun ContainerState.Color.nameRes(): Int = when (this) {
     ContainerState.Color.TOOLBAR -> R.string.profiles_color_gray
 }
 
-/** The colors a user can pick for a profile, in display order. */
+/** A color a user can pick for a profile. */
+data class ProfileSwatch(val argb: Int, @StringRes val nameRes: Int)
+
+/** The color presets of the editor: the eight Firefox colors first, then more that read on light and dark. */
+val ProfileSwatches: List<ProfileSwatch> =
+    ContainerState.Color.values().filter { it != ContainerState.Color.TOOLBAR }
+        .map { ProfileSwatch(it.toArgb(), it.nameRes()) } + listOf(
+        ProfileSwatch(0xFFD63F5C.toInt(), R.string.profiles_color_crimson),
+        ProfileSwatch(0xFFF06292.toInt(), R.string.profiles_color_rose),
+        ProfileSwatch(0xFFC2399E.toInt(), R.string.profiles_color_magenta),
+        ProfileSwatch(0xFF7E57C2.toInt(), R.string.profiles_color_violet),
+        ProfileSwatch(0xFF5C6BC0.toInt(), R.string.profiles_color_indigo),
+        ProfileSwatch(0xFF4FC3F7.toInt(), R.string.profiles_color_sky),
+        ProfileSwatch(0xFF26C6DA.toInt(), R.string.profiles_color_cyan),
+        ProfileSwatch(0xFF1E9E8F.toInt(), R.string.profiles_color_teal),
+        ProfileSwatch(0xFF4CD39A.toInt(), R.string.profiles_color_mint),
+        ProfileSwatch(0xFF9CCC3C.toInt(), R.string.profiles_color_lime),
+        ProfileSwatch(0xFF8A9A3B.toInt(), R.string.profiles_color_olive),
+        ProfileSwatch(0xFFF5A623.toInt(), R.string.profiles_color_amber),
+        ProfileSwatch(0xFFD2622A.toInt(), R.string.profiles_color_rust),
+        ProfileSwatch(0xFFA47551.toInt(), R.string.profiles_color_brown),
+        ProfileSwatch(0xFF78909C.toInt(), R.string.profiles_color_slate),
+        ProfileSwatch(0xFF9E9E9E.toInt(), R.string.profiles_color_gray),
+    )
+
+/** "#RRGGBB" of [argb] (alpha ignored). */
+fun hexOf(argb: Int): String = "#%06X".format(argb and 0xFFFFFF)
+
+/** The colors of the container (enum) palette, in display order. */
 val ProfileColorPalette: List<ContainerState.Color> =
     ContainerState.Color.values().filter { it != ContainerState.Color.TOOLBAR }
 
-/** The first palette color not used by [existing] profiles (the first one if all are used). */
-fun firstUnusedColor(existing: Collection<ContainerState>): ContainerState.Color {
-    val used = existing.map { it.color }.toSet()
-    return ProfileColorPalette.firstOrNull { it !in used } ?: ProfileColorPalette.first()
+/** The first swatch color not used by [existing] profiles (the first one if all are used), as ARGB. */
+fun firstUnusedColor(existing: Collection<ContainerState>): Int {
+    val used = existing.map { ProfileAppearance.colorOf(it) }.toSet()
+    return (ProfileSwatches.firstOrNull { it.argb !in used } ?: ProfileSwatches.first()).argb
 }
 
 @Composable

@@ -287,6 +287,7 @@ fun IconListItem(
     beforeIconPainter: Painter,
     beforeIconDescription: String? = null,
     isBeforeIconHighlighted: Boolean = false,
+    beforeIconContent: (@Composable () -> Unit)? = null, // Profiles: replaces the before icon (an emoji)
     showDivider: Boolean = false,
     afterIconTint: Color = ListItemDefaults.colors().leadingIconColor,
     contentPaddingListItem: PaddingValues =
@@ -313,12 +314,16 @@ fun IconListItem(
         onLongClick = onLongClick,
         contentPadding = contentPaddingListItem,
         beforeListItemAction = {
-            IconListItemBeforeIcon(
-                isHighlighted = enabled && isBeforeIconHighlighted,
-                painter = beforeIconPainter,
-                description = beforeIconDescription,
-                tint = if (enabled) beforeIconTint else colors.disabledLeadingIconColor,
-            )
+            if (beforeIconContent != null) {
+                Box(modifier = Modifier.size(ICON_SIZE), contentAlignment = Alignment.Center) { beforeIconContent() }
+            } else {
+                IconListItemBeforeIcon(
+                    isHighlighted = enabled && isBeforeIconHighlighted,
+                    painter = beforeIconPainter,
+                    description = beforeIconDescription,
+                    tint = if (enabled) beforeIconTint else colors.disabledLeadingIconColor,
+                )
+            }
         },
         afterListItemAction = {
             IconListItemAfterIcon(
