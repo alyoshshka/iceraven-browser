@@ -65,6 +65,8 @@ sealed interface TabsTrayItem {
         val profileColor: Int? = null,
         // Profiles: drawable resource of the tab's profile icon, null for the Default profile.
         val profileIcon: ContainerState.Icon? = null,
+        // Profiles: contextId of the tab's profile (looks up its custom color and emoji), null for Default.
+        val profileId: String? = null,
     ) : TabsTrayItem {
         override val isHomepageItem: Boolean = url.equals(ABOUT_HOME_URL, ignoreCase = true)
 
@@ -73,6 +75,7 @@ sealed interface TabsTrayItem {
             isFocused: Boolean = false,
             profileColor: Int? = null,
             profileIcon: ContainerState.Icon? = null,
+            profileId: String? = null,
         ) : this(
             id = tab.id,
             url = tab.content.url,
@@ -85,6 +88,7 @@ sealed interface TabsTrayItem {
             isFocused = isFocused,
             profileColor = profileColor,
             profileIcon = profileIcon,
+            profileId = profileId,
         )
 
         /** Constructs a [TabThumbnailImageData] from the given tab data */

@@ -118,7 +118,9 @@ jobs:
           target: default
           profile: pixel_6
           disable-animations: true
-          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -memory 4096
+          emulator-options: -no-window -gpu swangle_indirect -no-snapshot -noaudio -no-boot-anim -memory 4096
+          # swangle_indirect (ANGLE on SwiftShader): swiftshader_indirect lost color buffers and hung the emulator
+          # on the profile editor's custom color dialog (gradients in a dialog over a dialog).
           # One retry from a fresh install: emulator UI runs are occasionally disturbed at boot.
           script: raven/e2e.sh "${{ env.APK }}" emulator-5554 || { echo "e2e attempt 1 failed; retrying once"; RAVEN_E2E_OUT="$RAVEN_E2E_OUT/retry" raven/e2e.sh "${{ env.APK }}" emulator-5554; }
         env:

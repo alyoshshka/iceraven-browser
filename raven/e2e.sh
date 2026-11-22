@@ -44,6 +44,7 @@ case "$PKG" in *.debug) SCHEME=${RAVEN_E2E_SCHEME:-iceraven-debug} ;; *) SCHEME=
 EX_CTX=app.ravenprofiles.extra.CONTEXT_ID
 EX_DESK=app.ravenprofiles.extra.DESKTOP
 EX_SKIP=app.ravenprofiles.extra.SKIP_ASK
+EX_APP=app.ravenprofiles.extra.APP_MODE
 OUT=${RAVEN_E2E_OUT:-e2e-out}
 mkdir -p "$OUT"; OUT=$(cd "$OUT" && pwd)
 UI="$OUT/ui.xml"
@@ -547,7 +548,7 @@ check_link_chooser() {
   name='chooser: "New profile" creates "Bank" inline and opens the link in it'
   view_external "$(read_url)"
   if ! wait_for_text '^Open link in$' 20; then fail "$name" "dialog not shown"; return 1; fi
-  tap_text '^New profile$' 5 && wait_for_text '^Create and open$' 10 \
+  tap_text '^New profile$' 5 && wait_for_text '^Profile name$' 10 \
     || { fail "$name" "no inline form"; return 1; }
   sh_ input text Bank; sleep 1
   shot new-profile-form
@@ -762,6 +763,96 @@ check_profile_proxy() {
   pass "$name (Work via proxy, Default direct, proxy down -> error page, None -> direct again; now $v)"
 }
 
+# Profiles: custom color (hex field of the color picker) and emoji instead of the icon, in the Work editor; then the
+# profiles list and the toolbar chip of a Work tab show the emoji (the chip keeps its "Profile: Work" description).
+check_profile_appearance() {
+  local name='profile appearance: custom color + emoji shown in the list and on the toolbar chip' xy
+  open_work_editor || { fail "$name" "could not open the Work editor"; return 1; }
+  shot appearance-editor
+  tap_text_scroll '^Custom color$' || { fail "$name" "no Custom color swatch"; return 1; }
+  wait_for_text '^Hex color$' 10 || { fail "$name" "custom color picker not shown"; return 1; }
+  shot appearance-custom-picker
+  dump; xy=$(ui_query center '^Hex color$') || { fail "$name" "no hex field"; return 1; }
+  tap_xy ${xy}; sleep 1
+  sh_ input keyevent KEYCODE_MOVE_END KEYCODE_DEL KEYCODE_DEL KEYCODE_DEL KEYCODE_DEL KEYCODE_DEL KEYCODE_DEL KEYCODE_DEL KEYCODE_DEL
+  sh_ input text 1E8C5A; sleep 1
+  shot appearance-custom-hex
+  back; sleep 1 # closes the keyboard; the dialog stays
+  tap_text '^Select$' 10 || { fail "$name" "no Select button"; return 1; }
+  wait_for_text '^Custom color #1E8C5A$' 10 || { fail "$name" "custom swatch does not show #1E8C5A"; return 1; }
+  tap_text_scroll '^Emoji$' || { fail "$name" "no Emoji mode chip"; return 1; }
+  tap_text_scroll 'Emoji 🦊' || { fail "$name" "no fox suggestion"; return 1; }
+  shot appearance-emoji
+  tap_text_scroll '^Save$' || { fail "$name" "no Save button"; return 1; }
+  wait_for_text '^Add profile$' 15 || { fail "$name" "profiles list not shown after save"; return 1; }
+  wait_for_text '🦊' 10 || { fail "$name" "emoji not in the profiles list"; return 1; }
+  shot appearance-list
+  open_work_tab || { fail "$name" "no 'Profile: Work' chip after the change"; return 1; }
+  wait_for_text '🦊' 15 || { fail "$name" "emoji not on the toolbar chip"; return 1; }
+  shot appearance-chip
+  pass "$name"
+}
+
+# ---- home screen shortcuts that open as apps ---------------------------------------------------------
+# "<activity> t<taskId>" of the resumed activity of the app (empty if another app is on top).
+resumed_activity() {
+  sh_ dumpsys activity activities | tr -d '\r' | grep -E 'topResumedActivity|mResumedActivity' | head -1 \
+    | grep -oE "$PKG/[A-Za-z0-9_.]+\}? t[0-9]+" | head -1 | tr -d '}'
+}
+wait_resumed() { # <activity class suffix> [timeout]: prints "<activity> t<id>" once it is resumed
+  local end=$((SECONDS + ${2:-30})) r
+  while [ $SECONDS -lt "$end" ]; do
+    r=$(resumed_activity)
+    case "$r" in *"$1 "*) echo "$r"; return 0 ;; esac
+    sleep 1
+  done
+  echo "$r"; return 1
+}
+# Simulates the intent of a home screen shortcut of the Work profile (what the launcher sends).
+# The Work profile is given by its contextId when known (WORK_CTX), else by name: debug builds resolve
+# app.ravenprofiles.extra.CONTEXT_NAME themselves (run-as and root are not available on every device).
+view_app() { # <url> [extra args...]
+  local url=$1; shift
+  local who=(--es app.ravenprofiles.extra.CONTEXT_NAME Work)
+  [ -n "${WORK_CTX:-}" ] && who=(--es "$EX_CTX" "$WORK_CTX")
+  sh_ am start -a android.intent.action.VIEW -c mozilla.components.pwa.category.SHORTCUT -d "'$url'" \
+    "${who[@]}" --ez "$EX_DESK" false "$@" -n "$PKG/$IRA" >/dev/null
+}
+check_app_mode() {
+  local name='shortcut opens as an app: own window, slim bar, profile cookies, reused task; app mode off opens a tab'
+  local r1 r2 r3 v url
+  url=$(read_url) # a shortcut always opens the same URL
+  case "$PKG" in *.debug) ;; *) [ -n "${WORK_CTX:-}" ] || { log "SKIP $name (needs a debug build or RAVEN_E2E_USE_ROOT=1)"; return 0; } ;; esac
+  view_app "$url"
+  r1=$(wait_resumed ExternalAppBrowserActivity 40) || { fail "$name" "resumed activity is '$r1', not ExternalAppBrowserActivity"; return 1; }
+  sleep 4; dump
+  ui_query has 'Search or enter address' && { fail "$name" "address bar shown in the app window"; return 1; }
+  wait_for_text '^App menu$' 20 || { fail "$name" "slim bar menu (App menu) missing"; return 1; }
+  v=$(read_page_value 40) || { fail "$name" "page value not readable in the app window"; return 1; }
+  [ "$v" = 'who=work' ] || { fail "$name" "app window should share Work's cookies (who=work), saw $v"; return 1; }
+  shot app-window
+  tap_text '^App menu$' 10 && wait_for_text '^Open in Raven$' 10 || { fail "$name" "app menu has no 'Open in Raven'"; return 1; }
+  shot app-menu
+  back; sleep 1
+  # The same shortcut again, with the main browser in front in between, must come back to the same task.
+  view_default "$(read_url)"; wait_resumed HomeActivity 30 >/dev/null || { fail "$name" "main browser did not come to the front"; return 1; }
+  view_app "$url"
+  r2=$(wait_resumed ExternalAppBrowserActivity 30) || { fail "$name" "second launch: resumed '$r2'"; return 1; }
+  [ "${r1##* }" = "${r2##* }" ] || { fail "$name" "second launch used another task ($r1 vs $r2)"; return 1; }
+  wait_for_text '^App menu$' 20 || { fail "$name" "reused app window is blank (no slim bar)"; return 1; }
+  # App mode off: a normal tab in the main window.
+  view_app "$url" --ez "$EX_APP" false
+  r3=$(wait_resumed HomeActivity 30) || { fail "$name" "app mode off should open HomeActivity, got '$r3'"; return 1; }
+  chip_is Work 20 || { fail "$name" "app mode off: tab is not a Work tab"; return 1; }
+  # Back on the first page closes the app window (nothing blank is left behind); the shortcut then opens a fresh one.
+  view_app "$url"; wait_resumed ExternalAppBrowserActivity 30 >/dev/null || { fail "$name" "app window did not open again"; return 1; }
+  back; sleep 2
+  case "$(resumed_activity)" in *ExternalAppBrowserActivity*) fail "$name" "back on the first page did not close the app window"; return 1 ;; esac
+  view_app "$url"; wait_resumed ExternalAppBrowserActivity 30 >/dev/null || { fail "$name" "app window did not open after closing"; return 1; }
+  wait_for_text '^App menu$' 20 || { fail "$name" "app window opened after closing is blank"; return 1; }
+  pass "$name ($r1)"
+}
+
 check_no_crash() {
   local name='no FATAL EXCEPTION in logcat'
   A logcat -d > "$OUT/logcat.txt" 2>&1 || true
@@ -832,7 +923,8 @@ if [ "${RAVEN_E2E_DISABLE_OTHER_BROWSERS:-0}" = 1 ]; then
 fi
 A logcat -c
 
-check_install_launch && {
+run_checks() {
+  check_install_launch || return 0
   check_create_profile
   check_cookie_isolation
   check_downloads_app_only
@@ -843,7 +935,11 @@ check_install_launch && {
   check_always_open_via_chip
   check_keep_alive
   check_profile_proxy
+  check_profile_appearance
+  check_app_mode
 }
+# RAVEN_E2E_ONLY=<check function>: debugging, runs just that check against the already installed app.
+if [ -n "${RAVEN_E2E_ONLY:-}" ]; then "$RAVEN_E2E_ONLY"; else run_checks; fi
 check_no_crash
 
 echo

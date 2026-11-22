@@ -52,7 +52,7 @@ class RavenFilePicker(
     private val customTabId: String?,
 ) : FileSourceChooser {
 
-    private class Entry(val file: File, val groupName: String, val color: Int?)
+    private class Entry(val file: File, val groupName: String, val color: Int?, val profileId: String)
 
     override fun chooseSource(source: FileSourceRequest) {
         if (activity.isFinishing) {
@@ -211,7 +211,7 @@ class RavenFilePicker(
                                 entry.groupName,
                                 Formatter.formatShortFileSize(activity, entry.file.length()),
                             )
-                            val dot: (@Composable () -> Unit)? = entry.color?.let { { ProfileDot(Color(it)) } }
+                            val dot: (@Composable () -> Unit)? = entry.color?.let { { ProfileTabIcon(icon = null, color = Color(it), profileId = entry.profileId) } }
                             if (multiple) {
                                 SelectableListItem(
                                     label = entry.file.name,
@@ -289,7 +289,7 @@ class RavenFilePicker(
         return ordered.flatMap { id ->
             val files = storage.privateDir(id).listFiles { f -> f.isFile && accepts(accept, f.name) }
                 ?.sortedByDescending { it.lastModified() } ?: emptyList()
-            files.map { Entry(it, nameOf(id), containers[id]?.color?.toArgb()) }
+            files.map { Entry(it, nameOf(id), containers[id]?.color?.toArgb(), id) }
         }
     }
 

@@ -88,7 +88,7 @@ class ProfilesSettingsFragment : Fragment(), SystemInsetsPaddedFragment {
                 },
                 rules = rules,
                 limited = limited,
-                onSave = { existing, name, color, icon, limitSites, removedSites, proxy ->
+                onSave = { existing, name, color, emoji, icon, limitSites, removedSites, proxy ->
                     // Adding a container with an existing contextId replaces it (see ContainerReducer).
                     val contextId = existing?.contextId ?: UUID.randomUUID().toString()
                     storage.setName(contextId, name)
@@ -104,8 +104,8 @@ class ProfilesSettingsFragment : Fragment(), SystemInsetsPaddedFragment {
                             ContainerState(
                                 contextId = contextId,
                                 name = name,
-                                color = color,
-                                icon = icon,
+                                color = ProfileAppearance.apply(requireContext(), contextId, color, emoji),
+                                icon = if (emoji != null) ContainerState.Icon.CIRCLE else icon,
                             ),
                         ),
                     )
@@ -131,6 +131,7 @@ class ProfilesSettingsFragment : Fragment(), SystemInsetsPaddedFragment {
         store.dispatch(ContainerAction.RemoveContainerAction(container.contextId))
         ProfileStorage(requireContext()).deleteProfileFiles(container.contextId)
         ProfileProxy.remove(requireContext(), container.contextId)
+        ProfileAppearance.remove(requireContext(), container.contextId)
     }
 }
 
@@ -159,7 +160,8 @@ private fun ProfilesSettingsScreen(
     onSave: (
         existing: ContainerState?,
         name: String,
-        color: ContainerState.Color,
+        color: Int,
+        emoji: String?,
         icon: ContainerState.Icon,
         limited: Boolean,
         removedSites: Set<String>,
@@ -212,8 +214,8 @@ private fun ProfilesSettingsScreen(
             limited = current.existing?.let { it.contextId in limited } ?: false,
             proxy = current.existing?.let { ProfileProxy.get(it.contextId) } ?: ProfileProxySettings(),
             onDismiss = { dialog = null },
-            onSave = { name, color, icon, limitSites, removedSites, proxy ->
-                onSave(current.existing, name, color, icon, limitSites, removedSites, proxy)
+            onSave = { name, color, emoji, icon, limitSites, removedSites, proxy ->
+                onSave(current.existing, name, color, emoji, icon, limitSites, removedSites, proxy)
                 dialog = null
             },
         )
@@ -242,8 +244,14 @@ private fun ProfileRow(
     IconListItem(
         label = profile.name,
         beforeIconPainter = painterResource(profile.icon.drawableRes()),
-        beforeIconDescription = stringResource(profile.color.nameRes()),
-        beforeIconTint = profile.color.toComposeColor(),
+        beforeIconContent = {
+            ProfileBadge(
+                container = profile,
+                contentDescription = ProfileAppearance.emojiOf(profile.contextId)
+                    ?: ProfileAppearance.lookOf(profile.contextId)?.color?.let { hexOf(it) }
+                    ?: stringResource(profile.color.nameRes()),
+            )
+        },
         onClick = onEdit,
         afterListAction = {
             IconButton(
@@ -316,7 +324,7 @@ private fun ProfilesSettingsScreenPreview() {
                 ContainerState("1", "Home", ContainerState.Color.GREEN, ContainerState.Icon.CIRCLE),
                 ContainerState("2", "Work", ContainerState.Color.BLUE, ContainerState.Icon.CIRCLE),
             ),
-            onSave = { _, _, _, _, _, _, _ -> },
+            onSave = { _, _, _, _, _, _, _, _ -> },
             onDelete = {},
         )
     }

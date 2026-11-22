@@ -77,7 +77,7 @@ fun ProfileActionsDialog(
         onDismissRequest = onDismiss,
         title = {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                ProfileIcon(icon = profile.icon, color = profile.color.toComposeColor())
+                ProfileBadge(container = profile)
                 Text(
                     text = profile.name,
                     style = FirefoxTheme.typography.headline5,

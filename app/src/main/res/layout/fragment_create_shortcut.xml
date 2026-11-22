@@ -65,16 +65,32 @@
             app:layout_constraintStart_toEndOf="@id/favicon_image"
             app:layout_constraintTop_toTopOf="@id/favicon_image" />
 
+        <!-- Profiles: open the shortcut in its own app window instead of a tab. -->
+        <androidx.appcompat.widget.SwitchCompat
+            android:id="@+id/app_mode_switch"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="32dp"
+            android:layout_marginTop="16dp"
+            android:layout_marginEnd="32dp"
+            android:checked="true"
+            android:minHeight="48dp"
+            android:text="@string/profiles_app_mode_switch"
+            android:textAlignment="viewStart"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/shortcut_text" />
+
         <Button
             android:id="@+id/add_button"
             style="@style/CreateShortcutDialogButton"
-            android:layout_marginTop="32dp"
+            android:layout_marginTop="16dp"
             android:layout_marginEnd="16dp"
             android:background="?selectableItemBackground"
             android:text="@string/add_to_homescreen_add"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/shortcut_text" />
+            app:layout_constraintTop_toBottomOf="@id/app_mode_switch" />
 
         <Button
             android:id="@+id/cancel_button"

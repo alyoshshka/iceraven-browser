@@ -6,6 +6,10 @@ package org.mozilla.fenix.customtabs
 
 import android.content.Context
 import android.view.View
+import android.view.ViewGroup
+import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.ViewCompositionStrategy
+import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.navArgs
 import kotlinx.coroutines.Dispatchers
@@ -25,6 +29,7 @@ import mozilla.components.feature.pwa.feature.WebAppHideToolbarFeature
 import mozilla.components.feature.pwa.feature.WebAppSiteControlsFeature
 import mozilla.components.support.base.feature.ViewBoundFeatureWrapper
 import mozilla.components.support.ktx.android.arch.lifecycle.addObservers
+import mozilla.components.support.ktx.android.content.share
 import mozilla.components.support.ktx.kotlin.isContentUrl
 import org.mozilla.fenix.R
 import org.mozilla.fenix.browser.BaseBrowserFragment
@@ -37,6 +42,9 @@ import org.mozilla.fenix.ext.components
 import org.mozilla.fenix.ext.nav
 import org.mozilla.fenix.ext.requireComponents
 import org.mozilla.fenix.ext.runIfFragmentIsAttached
+import org.mozilla.fenix.components.appstate.AppAction
+import org.mozilla.fenix.profiles.ProfileAppBar
+import org.mozilla.fenix.profiles.ProfileAppMode
 
 /** Fragment used for browsing the web within external apps. */
 class ExternalAppBrowserFragment : BaseBrowserFragment(), SystemInsetsPaddedFragment {
@@ -56,6 +64,9 @@ class ExternalAppBrowserFragment : BaseBrowserFragment(), SystemInsetsPaddedFrag
         val customTabSessionId = customTabSessionId ?: return
         val activity = requireActivity()
         val components = activity.components
+
+        // Profiles: a home screen shortcut opened as an app has a slim bar instead of the custom tab toolbar.
+        if (ProfileAppMode.isAppSession(customTabSessionId)) setUpProfileAppBar(view, customTabSessionId)
 
         val manifest =
             args.webAppManifestUrl
@@ -156,7 +167,7 @@ class ExternalAppBrowserFragment : BaseBrowserFragment(), SystemInsetsPaddedFrag
                     notificationsDelegate = requireComponents.notificationsDelegate,
                 )
             )
-        } else {
+        } else if (!ProfileAppMode.isAppSession(customTabSessionId)) {
             viewLifecycleOwner.lifecycle.addObserver(
                 PoweredByNotification(
                     activity.applicationContext,
@@ -166,6 +177,54 @@ class ExternalAppBrowserFragment : BaseBrowserFragment(), SystemInsetsPaddedFrag
                 )
             )
         }
+    }
+
+    /** Profiles: hides the toolbar and puts the slim [ProfileAppBar] above the page. */
+    private fun setUpProfileAppBar(view: View, sessionId: String) {
+        val context = requireContext()
+        val components = requireComponents
+        val store = components.core.store
+        val sessionUseCases = components.useCases.sessionUseCases
+
+        // The same state as a web app that hides its toolbar: no address bar and the page uses all the space.
+        webAppToolbarShouldBeVisible = false
+        expandBrowserView()
+
+        val bar = ComposeView(context).apply {
+            id = View.generateViewId()
+            layoutParams = ConstraintLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                startToStart = ConstraintLayout.LayoutParams.PARENT_ID
+                endToEnd = ConstraintLayout.LayoutParams.PARENT_ID
+                topToTop = ConstraintLayout.LayoutParams.PARENT_ID
+            }
+            setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
+            setContent {
+                ProfileAppBar(
+                    store = store,
+                    sessionId = sessionId,
+                    fallbackLabel = ProfileAppMode.labelOf(sessionId),
+                    onBack = { sessionUseCases.goBack(sessionId) },
+                    onForward = { sessionUseCases.goForward(sessionId) },
+                    onReload = { sessionUseCases.reload(sessionId) },
+                    onToggleDesktop = {
+                        val desktop = store.state.findCustomTab(sessionId)?.content?.desktopMode == true
+                        sessionUseCases.requestDesktopSite(!desktop, sessionId)
+                    },
+                    onShare = {
+                        store.state.findCustomTab(sessionId)?.content?.let { content ->
+                            context.share(content.url, content.title)
+                        }
+                    },
+                    onOpenInRaven = { components.appStore.dispatch(AppAction.OpenInFirefoxStarted) },
+                )
+            }
+        }
+        binding.browserWindow.addView(bar)
+        (binding.browserLayout.layoutParams as ConstraintLayout.LayoutParams).apply {
+            topToTop = ConstraintLayout.LayoutParams.UNSET
+            topToBottom = bar.id
+        }
+        binding.browserLayout.requestLayout()
     }
 
     override fun navToQuickSettingsSheet(tab: SessionState, sitePermissions: SitePermissions?) {

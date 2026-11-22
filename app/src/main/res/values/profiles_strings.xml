@@ -38,6 +38,34 @@
     <string name="profiles_color_red" translatable="false">Red</string>
     <string name="profiles_color_pink" translatable="false">Pink</string>
     <string name="profiles_color_purple" translatable="false">Purple</string>
+    <string name="profiles_color_crimson" translatable="false">Crimson</string>
+    <string name="profiles_color_rose" translatable="false">Rose</string>
+    <string name="profiles_color_magenta" translatable="false">Magenta</string>
+    <string name="profiles_color_violet" translatable="false">Violet</string>
+    <string name="profiles_color_indigo" translatable="false">Indigo</string>
+    <string name="profiles_color_sky" translatable="false">Sky</string>
+    <string name="profiles_color_cyan" translatable="false">Cyan</string>
+    <string name="profiles_color_teal" translatable="false">Teal</string>
+    <string name="profiles_color_mint" translatable="false">Mint</string>
+    <string name="profiles_color_lime" translatable="false">Lime</string>
+    <string name="profiles_color_olive" translatable="false">Olive</string>
+    <string name="profiles_color_amber" translatable="false">Amber</string>
+    <string name="profiles_color_rust" translatable="false">Rust</string>
+    <string name="profiles_color_brown" translatable="false">Brown</string>
+    <string name="profiles_color_slate" translatable="false">Slate</string>
+    <string name="profiles_color_custom" translatable="false">Custom color</string>
+    <string name="profiles_color_custom_title" translatable="false">Custom color</string>
+    <string name="profiles_color_custom_hex" translatable="false">Hex color</string>
+    <string name="profiles_color_custom_hex_error" translatable="false">Use the form #RRGGBB</string>
+    <string name="profiles_color_custom_square" translatable="false">Saturation and brightness</string>
+    <string name="profiles_color_custom_hue" translatable="false">Hue</string>
+    <string name="profiles_color_custom_select" translatable="false">Select</string>
+    <string name="profiles_icon_mode_icon" translatable="false">Icon</string>
+    <string name="profiles_icon_mode_emoji" translatable="false">Emoji</string>
+    <string name="profiles_emoji_field" translatable="false">Emoji</string>
+    <string name="profiles_emoji_hint" translatable="false">Type or pick one from your keyboard</string>
+    <string name="profiles_emoji_suggestion" translatable="false">Emoji %1$s</string>
+    <string name="profiles_color_preview" translatable="false">Preview</string>
     <string name="profiles_color_gray" translatable="false">Gray</string>
     <!-- Delete dialog -->
     <string name="profiles_delete_confirm_title" translatable="false">Delete profile “%1$s”?</string>
@@ -139,4 +167,14 @@
     <string name="profiles_proxy_status_reachable" translatable="false">reachable</string>
     <string name="profiles_proxy_status_unreachable" translatable="false">not reachable</string>
     <string name="profiles_proxy_checking" translatable="false">checking…</string>
+
+    <!-- Home screen shortcuts that open like apps -->
+    <string name="profiles_app_mode_switch" translatable="false">Open as app</string>
+    <string name="profiles_app_menu" translatable="false">App menu</string>
+    <string name="profiles_app_back" translatable="false">Back</string>
+    <string name="profiles_app_forward" translatable="false">Forward</string>
+    <string name="profiles_app_reload" translatable="false">Reload</string>
+    <string name="profiles_app_desktop_site" translatable="false">Desktop site</string>
+    <string name="profiles_app_share" translatable="false">Share</string>
+    <string name="profiles_app_open_in_raven" translatable="false">Open in Raven</string>
 </resources>
